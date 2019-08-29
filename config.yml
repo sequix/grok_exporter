@@ -1,0 +1,21 @@
+global:
+    config_version: 2
+input:
+    type: file
+    path: ./dir/*.log
+    readall: true
+    poll_interval_seconds: 5
+grok:
+    patterns_dir: ./logstash-patterns-core/patterns
+    additional_patterns:
+    - 'EXIM_MESSAGE [a-zA-Z ]*'
+metrics:
+    - type: counter
+      name: exim_rejected_rcpt_total
+      help: Total number of rejected recipients, partitioned by error message.
+      match: '%{EXIM_DATE} %{EXIM_REMOTE_HOST} F=<%{EMAILADDRESS}> rejected RCPT <%{EMAILADDRESS}>: %{EXIM_MESSAGE:message}'
+      labels:
+          error_message: '{{.message}}'
+server:
+    host: localhost
+    port: 8989

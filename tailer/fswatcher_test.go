@@ -323,7 +323,7 @@ func closeTailer(t *testing.T, ctx *context, ignoreUnexpectedLines bool) {
 }
 
 func assertGoroutinesTerminated(t *testing.T, ctx *context, nGoroutinesBefore int) {
-	// Timeout of 2 seconds, because after FileTailer.Close() returns the tailer is still
+	// Timeout of 2 seconds, because after Interface.Close() returns the tailer is still
 	// shutting down in the background.
 	timeout := 2 * time.Second
 	for nGoroutinesBefore < runtime.NumGoroutine() && timeout > 0 {
@@ -372,7 +372,7 @@ type context struct {
 	logrotateCfg    logrotateConfig
 	logrotateMvCfg  logrotateMoveConfig
 	log             logrus.FieldLogger
-	tailer          fswatcher.FileTailer
+	tailer          fswatcher.Interface
 	linesFromTailer *linesFromTailer
 }
 
@@ -598,7 +598,7 @@ func mkdir(t *testing.T, ctx *context, dirname string) {
 func startFileTailer(t *testing.T, ctx *context, params []string) {
 	var (
 		parsedGlobs       []glob.Glob
-		tailer            fswatcher.FileTailer
+		tailer            fswatcher.Interface
 		readall           = false
 		failOnMissingFile = true
 		globs             []string
@@ -983,16 +983,16 @@ func runTestShutdown(t *testing.T, mode string) {
 	assertGoroutinesTerminated(t, ctx, nGoroutinesBefore)
 }
 
-func makeLinesFromTailer(tailer fswatcher.FileTailer) *linesFromTailer {
+func makeLinesFromTailer(tailer fswatcher.Interface) *linesFromTailer {
 	return &linesFromTailer{
 		tailer: tailer,
 		buf:    make(map[string][]string),
 	}
 }
 
-// Wrapper around FileTailer to get the next lines for a specific file.
+// Wrapper around Interface to get the next lines for a specific file.
 type linesFromTailer struct {
-	tailer fswatcher.FileTailer
+	tailer fswatcher.Interface
 	buf    map[string][]string
 }
 

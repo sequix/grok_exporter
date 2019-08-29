@@ -38,7 +38,7 @@ func (t *stdinTailer) Close() {
 	// TODO: How to stop the go-routine reading on stdin?
 }
 
-func RunStdinTailer() fswatcher.FileTailer {
+func RunStdinTailer() fswatcher.Interface {
 	lineChan := make(chan *fswatcher.Line)
 	errorChan := make(chan fswatcher.Error)
 	go func() {

@@ -1,4 +1,4 @@
-// Copyright 2018 The grok_exporter Authors
+// Copyright 2018-2019 The grok_exporter Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,6 +14,13 @@
 
 package fswatcher
 
-func fdToInt(fd uintptr) uint64 {
-	return uint64(fd)
+type Line struct {
+	Line string
+	File string
+}
+
+type Interface interface {
+	Lines() chan *Line
+	Errors() chan Error
+	Close()
 }

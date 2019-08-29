@@ -291,10 +291,10 @@ func startServer(cfg v2.ServerConfig, httpHandlers []exporter.HttpServerPathHand
 	return serverErrors
 }
 
-func startTailer(cfg *v2.Config) (fswatcher.FileTailer, error) {
+func startTailer(cfg *v2.Config) (fswatcher.Interface, error) {
 	logger := logrus.New()
 	logger.Level = logrus.WarnLevel
-	var tail fswatcher.FileTailer
+	var tail fswatcher.Interface
 	g, err := glob.FromPath(cfg.Input.Path)
 	if err != nil {
 		return nil, err

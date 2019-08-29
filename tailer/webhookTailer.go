@@ -45,7 +45,7 @@ func (t *WebhookTailer) Close() {
 	// NO-OP, since the webserver thread is handled by the metrics server
 }
 
-func InitWebhookTailer(inputConfig *v2.InputConfig) fswatcher.FileTailer {
+func InitWebhookTailer(inputConfig *v2.InputConfig) fswatcher.Interface {
 	if webhookTailerSingleton != nil {
 		return webhookTailerSingleton
 	}

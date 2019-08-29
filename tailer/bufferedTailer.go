@@ -19,10 +19,10 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// implements fswatcher.FileTailer
+// implements fswatcher.Interface
 type bufferedTailer struct {
 	out  chan *fswatcher.Line
-	orig fswatcher.FileTailer
+	orig fswatcher.Interface
 	done chan struct{}
 }
 
@@ -39,7 +39,7 @@ func (b *bufferedTailer) Close() {
 	close(b.done)
 }
 
-func BufferedTailer(orig fswatcher.FileTailer) fswatcher.FileTailer {
+func BufferedTailer(orig fswatcher.Interface) fswatcher.Interface {
 	return BufferedTailerWithMetrics(orig, &noopMetric{}, logrus.New(), 0)
 }
 
@@ -102,7 +102,7 @@ func BufferedTailer(orig fswatcher.FileTailer) fswatcher.FileTailer {
 //
 // To minimize the risk, use the buffered tailer to make sure file system events are handled
 // as quickly as possible without waiting for the grok patterns to be processed.
-func BufferedTailerWithMetrics(orig fswatcher.FileTailer, bufferLoadMetric BufferLoadMetric, log logrus.FieldLogger, maxLinesInBuffer int) fswatcher.FileTailer {
+func BufferedTailerWithMetrics(orig fswatcher.Interface, bufferLoadMetric BufferLoadMetric, log logrus.FieldLogger, maxLinesInBuffer int) fswatcher.Interface {
 	buffer := NewLineBuffer()
 	out := make(chan *fswatcher.Line)
 	done := make(chan struct{})
