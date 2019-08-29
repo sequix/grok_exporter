@@ -57,7 +57,7 @@ server:
 
 ## 实现
 
-！[implementation diagram](images/grok.jpg)
+![implementation diagram](images/grok.jpg)
 
 删除tailer/fswatcher中原有内容，只保留对外interface，该接口对外暴漏两个chan，发送日志行的Lines 和 发送Error的errors
 
