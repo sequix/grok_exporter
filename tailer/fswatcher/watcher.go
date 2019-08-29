@@ -17,6 +17,7 @@ package fswatcher
 import (
 	"io"
 	"io/ioutil"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -33,14 +34,12 @@ type watcher struct {
 	tailConfig   tail.Config
 	logger       logrus.FieldLogger
 	watcher      *fsnotify.Watcher
-	watchedDirs  map[string]struct{}
 	watchedFiles map[string]*tailer
 	lines        chan *Line
 	errors       chan Error
 	done         chan struct{}
 }
 
-// TODO: failOnMissingFile 的实现
 func RunFileTailer(globs []glob.Glob, readall bool, failOnMissingFile bool, log logrus.FieldLogger) (Interface, error) {
 	dirs, Err := expandGlobs(globs)
 	if Err != nil {
@@ -116,8 +115,7 @@ func (w *watcher) init(dirs map[string]struct{}) {
 	}
 }
 
-// TODO: 重命名文件会令grok从头重读该文件，多数系统不支持MovedFromTo事件
-// TODO: case "CHMOD": 权限不足也应算一种删除
+// BUG: 重命名文件会令grok从头重读该文件，多数系统不支持MovedFromTo事件
 func (w *watcher) handle(event fsnotify.Event) {
 	path := event.Name
 	ops := strings.Split(event.Op.String(), "|")
@@ -126,6 +124,17 @@ func (w *watcher) handle(event fsnotify.Event) {
 		case "CREATE":
 			if matchGlobs(path, w.globs) {
 				w.watch(path)
+			}
+		case "CHMOD":
+			if matchGlobs(path, w.globs) {
+				f, err := os.OpenFile(path, os.O_RDONLY, 0666)
+				if err != nil {
+					if os.IsPermission(err) {
+						w.unwatch(path)
+					}
+					continue
+				}
+				f.Close()
 			}
 		case "RENAME":
 			fallthrough
@@ -139,6 +148,7 @@ func (w *watcher) watch(path string) {
 	if _, existing := w.watchedFiles[path]; existing {
 		return
 	}
+	w.logger.Debug("watch new file " + path)
 	t, err := w.newTailer(path)
 	if err != nil {
 		w.errors <- NewErrorf(NotSpecified, err, "watch file %s failed", path)
@@ -153,6 +163,7 @@ func (w *watcher) unwatch(path string) {
 	if !existing {
 		return
 	}
+	w.logger.Debug("unwatch file " + path)
 	t.stop()
 	delete(w.watchedFiles, path)
 }

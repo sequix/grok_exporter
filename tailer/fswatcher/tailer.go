@@ -1,6 +1,8 @@
 package fswatcher
 
 import (
+	"os"
+
 	"github.com/hpcloud/tail"
 )
 
@@ -16,6 +18,9 @@ type tailer struct {
 func (w *watcher) newTailer(path string) (*tailer, error) {
 	t, err := tail.TailFile(path, w.tailConfig)
 	if err != nil {
+		if w.tailConfig.MustExist && os.IsNotExist(err) {
+			return nil, NewErrorf(FileNotFound, err, "file %s not found", err)
+		}
 		return nil, err
 	}
 

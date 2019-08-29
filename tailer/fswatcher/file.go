@@ -2,6 +2,7 @@ package fswatcher
 
 import (
 	"bufio"
+	"io"
 	"os"
 	"strings"
 )
@@ -12,10 +13,15 @@ type file struct {
 	path string
 }
 
-func newFile(path string) (*file, error) {
+func newFile(path string, readall bool) (*file, error) {
 	f, err := os.Open(path)
 	if err != nil {
 		return nil, err
+	}
+	if !readall {
+		if _, err := f.Seek(0, io.SeekEnd); err != nil {
+			return nil, err
+		}
 	}
 	return &file{
 		path:   path,

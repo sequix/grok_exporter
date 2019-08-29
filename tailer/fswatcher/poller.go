@@ -15,17 +15,18 @@ import (
 )
 
 type poller struct {
-	globs        []glob.Glob
-	logger       logrus.FieldLogger
-	pollInterval time.Duration
-	watchedDirs  map[string]struct{}
-	watchedFiles map[string]*file
-	lines        chan *Line
-	errors       chan Error
-	done         chan struct{}
+	readall           bool
+	failOnMissingFile bool
+	globs             []glob.Glob
+	logger            logrus.FieldLogger
+	pollInterval      time.Duration
+	watchedDirs       map[string]struct{}
+	watchedFiles      map[string]*file
+	lines             chan *Line
+	errors            chan Error
+	done              chan struct{}
 }
 
-// TODO: readall, failOnMissingFile
 func RunPollingFileTailer(globs []glob.Glob, readall bool, failOnMissingFile bool, pollInterval time.Duration, log logrus.FieldLogger) (Interface, error) {
 	dirs, Err := expandGlobs(globs)
 	if Err != nil {
@@ -33,14 +34,16 @@ func RunPollingFileTailer(globs []glob.Glob, readall bool, failOnMissingFile boo
 	}
 
 	p := &poller{
-		globs:        globs,
-		logger:       log.WithField("component", "poller"),
-		pollInterval: pollInterval,
-		watchedDirs:  dirs,
-		watchedFiles: make(map[string]*file),
-		lines:        make(chan *Line),
-		errors:       make(chan Error),
-		done:         make(chan struct{}),
+		readall:           readall,
+		failOnMissingFile: failOnMissingFile,
+		globs:             globs,
+		logger:            log.WithField("component", "poller"),
+		pollInterval:      pollInterval,
+		watchedDirs:       dirs,
+		watchedFiles:      make(map[string]*file),
+		lines:             make(chan *Line),
+		errors:            make(chan Error),
+		done:              make(chan struct{}),
 	}
 	go p.run()
 	return p, nil
@@ -89,10 +92,10 @@ func (p *poller) sync() {
 			}
 			f, ok := p.watchedFiles[path]
 			if !ok {
-				f, err = newFile(path)
+				f, err = newFile(path, p.readall)
 				if err != nil {
 					errType := NotSpecified
-					if os.IsNotExist(err) {
+					if p.failOnMissingFile && os.IsNotExist(err) {
 						errType = FileNotFound
 					}
 					p.errors <- NewErrorf(ErrorType(errType), err, "open file %s failed", path)
