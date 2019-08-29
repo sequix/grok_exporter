@@ -1,10 +1,13 @@
 global:
     config_version: 2
+position:
+    position_file: ./position.json
+    sync_interval: 1s
 input:
     type: file
     path: ./dir/*.log
     readall: true
-    poll_interval_seconds: 5
+    #poll_interval_seconds: 3
 grok:
     patterns_dir: ./logstash-patterns-core/patterns
     additional_patterns:

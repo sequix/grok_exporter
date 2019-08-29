@@ -1,19 +1,20 @@
 package tailer
 
 import (
-	"container/list"
-	"github.com/fstab/grok_exporter/tailer/fswatcher"
 	"io"
-	logFatal "log"
+	"log"
 	"sync"
+	"container/list"
+
+	"github.com/fstab/grok_exporter/tailer/fswatcher"
 )
 
 // lineBuffer is a thread safe queue for *fswatcher.Line.
 type lineBuffer interface {
+	io.Closer // will interrupt BlockingPop()
 	Push(line *fswatcher.Line)
 	BlockingPop() *fswatcher.Line // can be interrupted by calling Close()
 	Len() int
-	io.Closer // will interrupt BlockingPop()
 	Clear()
 }
 
@@ -56,7 +57,7 @@ func (b *lineBufferImpl) BlockingPop() *fswatcher.Line {
 				return line
 			default:
 				// this cannot happen
-				logFatal.Fatal("unexpected type in tailer b.buffer")
+				log.Fatal("unexpected type in tailer b.buffer")
 			}
 		}
 	}

@@ -15,15 +15,19 @@
 package v2
 
 import (
+	"errors"
 	"fmt"
 	"github.com/fstab/grok_exporter/template"
 	"gopkg.in/yaml.v2"
+	"os"
 	"strconv"
 	"strings"
 	"time"
 )
 
 const (
+	defaultPositionsFile          = "/tmp/position.json"
+	defaultPositionSyncIntervcal  = 10 * time.Second
 	defaultRetentionCheckInterval = 53 * time.Second
 	inputTypeStdin                = "stdin"
 	inputTypeFile                 = "file"
@@ -44,11 +48,12 @@ func Unmarshal(config []byte) (*Config, error) {
 }
 
 type Config struct {
-	Global  GlobalConfig  `yaml:",omitempty"`
-	Input   InputConfig   `yaml:",omitempty"`
-	Grok    GrokConfig    `yaml:",omitempty"`
-	Metrics MetricsConfig `yaml:",omitempty"`
-	Server  ServerConfig  `yaml:",omitempty"`
+	Global   GlobalConfig   `yaml:",omitempty"`
+	Input    InputConfig    `yaml:",omitempty"`
+	Grok     GrokConfig     `yaml:",omitempty"`
+	Metrics  MetricsConfig  `yaml:",omitempty"`
+	Server   ServerConfig   `yaml:",omitempty"`
+	Position PositionConfig `yaml:",omitempty"`
 }
 
 type GlobalConfig struct {
@@ -56,12 +61,16 @@ type GlobalConfig struct {
 	RetentionCheckInterval time.Duration `yaml:"retention_check_interval,omitempty"` // implicitly parsed with time.ParseDuration()
 }
 
+type PositionConfig struct {
+	PositionFile string        `yaml:"position_file,omitempty"`
+	SyncInterval time.Duration `yaml:"sync_interval,omitempty"`
+}
+
 type InputConfig struct {
 	Type                       string        `yaml:",omitempty"`
 	Path                       string        `yaml:",omitempty"`
 	FailOnMissingLogfileString string        `yaml:"fail_on_missing_logfile,omitempty"` // cannot use bool directly, because yaml.v2 doesn't support true as default value.
 	FailOnMissingLogfile       bool          `yaml:"-"`
-	Readall                    bool          `yaml:",omitempty"`
 	PollIntervalSeconds        string        `yaml:"poll_interval_seconds,omitempty"` // TODO: Use time.Duration directly
 	PollInterval               time.Duration `yaml:"-"`                               // parsed version of PollIntervalSeconds
 	MaxLinesInBuffer           int           `yaml:"max_lines_in_buffer,omitempty"`
@@ -114,6 +123,7 @@ func (cfg *Config) addDefaults() {
 	}
 	cfg.Metrics.addDefaults()
 	cfg.Server.addDefaults()
+	cfg.Position.addDefaults()
 }
 
 func (c *GlobalConfig) addDefaults() {
@@ -181,6 +191,10 @@ func (cfg *Config) validate() error {
 	if err != nil {
 		return err
 	}
+	err = cfg.Position.validate()
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -190,9 +204,6 @@ func (c *InputConfig) validate() error {
 	case c.Type == inputTypeStdin:
 		if c.Path != "" {
 			return fmt.Errorf("invalid input configuration: cannot use 'input.path' when 'input.type' is stdin")
-		}
-		if c.Readall {
-			return fmt.Errorf("invalid input configuration: cannot use 'input.readall' when 'input.type' is stdin")
 		}
 		if c.PollIntervalSeconds != "" {
 			return fmt.Errorf("invalid input configuration: cannot use 'input.poll_interval_seconds' when 'input.type' is stdin")
@@ -429,4 +440,31 @@ func (cfg *Config) marshalToString() string {
 	result = strings.Replace(result, "fail_on_missing_logfile: \"false\"", "fail_on_missing_logfile: false", -1)
 	result = strings.Replace(result, "fail_on_missing_logfile: \"true\"", "fail_on_missing_logfile: true", -1)
 	return result
+}
+
+func (cfg *PositionConfig) addDefaults() {
+	if cfg.PositionFile == "" {
+		cfg.PositionFile = defaultPositionsFile
+	}
+	if cfg.SyncInterval == 0 {
+		cfg.SyncInterval = defaultPositionSyncIntervcal
+	}
+}
+
+func (cfg *PositionConfig) validate() error {
+	fi, err := os.Stat(cfg.PositionFile)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			return err
+		}
+	} else {
+		if fi.IsDir() {
+			return errors.New("expected a file for position_file")
+		}
+	}
+
+	if cfg.SyncInterval < time.Second {
+		return errors.New("expected sync_interval more than 1s")
+	}
+	return nil
 }

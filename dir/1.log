@@ -1,0 +1,18 @@
+2016-04-18 09:33:27 H=(85.214.241.101) [114.37.190.56] F=<z2007tw@yahoo.com.tw> rejected RCPT <alan.a168@msa.hinet.net>: relay not permitted
+2016-04-18 12:28:04 H=(85.214.241.101) [118.161.243.219] F=<z2007tw@yahoo.com.tw> rejected RCPT <alan.a168@msa.hinet.net>: relay not permitted
+2016-04-26 12:31:39 H=(186-90-8-31.genericrev.cantv.net) [186.90.8.31] F=<Hans.Krause9@cantv.net> rejected RCPT <ug2seeng-admin@example.com>: Unrouteable address
+2016-04-26 12:33:17 H=([2.177.233.249]) [2.177.233.249] F=<Fritz.Friedrich1D@philadelphiagreatbooks.com> rejected RCPT <|admin@example.com>
+2016-04-26 12:34:53 H=(1-54-0-27.vasaicable.co.in) [27.0.54.1] F=<Ingemar.Scholz8@bafweb.com> rejected RCPT <part@example.com>: Unrouteable address
+2016-04-26 12:36:33 H=([103.60.76.34]) [103.60.76.34] F=<Sven.Walter9@rithergraphic.com> rejected RCPT <an@example.com>: Sender verify failed
+2016-04-26 12:37:19 H=([182.48.72.234]) [182.48.72.234] F=<Wenzel.JungB@vreau1site.ro> rejected RCPT <thisisjusttestletter@example.com>: Unrouteable address
+2016-04-26 12:38:17 H=([41.73.234.187]) [41.73.234.187] F=<Engelbert.WolfF@sublevel4.com> rejected RCPT <localpart@example.com>: Unrouteable address
+2016-04-26 16:25:22 H=(85.214.241.101) [118.160.212.204] F=<z2007tw@yahoo.com.tw> rejected RCPT <alan.a168@msa.hinet.net>: relay not permitted
+2016-04-18 09:33:27 H=(85.214.241.101) [114.37.190.56] F=<z2007tw@yahoo.com.tw> rejected RCPT <alan.a168@msa.hinet.net>: relay not permitted
+2016-04-18 12:28:04 H=(85.214.241.101) [118.161.243.219] F=<z2007tw@yahoo.com.tw> rejected RCPT <alan.a168@msa.hinet.net>: relay not permitted
+2016-04-26 12:31:39 H=(186-90-8-31.genericrev.cantv.net) [186.90.8.31] F=<Hans.Krause9@cantv.net> rejected RCPT <ug2seeng-admin@example.com>: Unrouteable address
+2016-04-26 12:33:17 H=([2.177.233.249]) [2.177.233.249] F=<Fritz.Friedrich1D@philadelphiagreatbooks.com> rejected RCPT <|admin@example.com>
+2016-04-26 12:34:53 H=(1-54-0-27.vasaicable.co.in) [27.0.54.1] F=<Ingemar.Scholz8@bafweb.com> rejected RCPT <part@example.com>: Unrouteable address
+2016-04-26 12:36:33 H=([103.60.76.34]) [103.60.76.34] F=<Sven.Walter9@rithergraphic.com> rejected RCPT <an@example.com>: Sender verify failed
+2016-04-26 12:37:19 H=([182.48.72.234]) [182.48.72.234] F=<Wenzel.JungB@vreau1site.ro> rejected RCPT <thisisjusttestletter@example.com>: Unrouteable address
+2016-04-26 12:38:17 H=([41.73.234.187]) [41.73.234.187] F=<Engelbert.WolfF@sublevel4.com> rejected RCPT <localpart@example.com>: Unrouteable address
+2016-04-26 16:25:22 H=(85.214.241.101) [118.160.212.204] F=<z2007tw@yahoo.com.tw> rejected RCPT <alan.a168@msa.hinet.net>: relay not permitted

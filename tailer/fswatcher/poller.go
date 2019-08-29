@@ -12,10 +12,11 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/fstab/grok_exporter/tailer/glob"
+	"github.com/fstab/grok_exporter/tailer/position"
 )
 
 type poller struct {
-	readall           bool
+	pos               position.Interface
 	failOnMissingFile bool
 	globs             []glob.Glob
 	logger            logrus.FieldLogger
@@ -27,14 +28,20 @@ type poller struct {
 	done              chan struct{}
 }
 
-func RunPollingFileTailer(globs []glob.Glob, readall bool, failOnMissingFile bool, pollInterval time.Duration, log logrus.FieldLogger) (Interface, error) {
+func RunPollingFileTailer(
+	globs []glob.Glob,
+	pos position.Interface,
+	failOnMissingFile bool,
+	pollInterval time.Duration,
+	log logrus.FieldLogger,
+) (Interface, error) {
 	dirs, Err := expandGlobs(globs)
 	if Err != nil {
 		return nil, Err
 	}
 
 	p := &poller{
-		readall:           readall,
+		pos:               pos,
 		failOnMissingFile: failOnMissingFile,
 		globs:             globs,
 		logger:            log.WithField("component", "poller"),
@@ -92,7 +99,7 @@ func (p *poller) sync() {
 			}
 			f, ok := p.watchedFiles[path]
 			if !ok {
-				f, err = newFile(path, p.readall)
+				f, err = p.newFile(path)
 				if err != nil {
 					errType := NotSpecified
 					if p.failOnMissingFile && os.IsNotExist(err) {

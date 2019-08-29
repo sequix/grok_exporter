@@ -17,6 +17,14 @@ package main
 import (
 	"flag"
 	"fmt"
+	"os"
+	"strings"
+	"time"
+
+	"github.com/davecgh/go-spew/spew"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/sirupsen/logrus"
+
 	"github.com/fstab/grok_exporter/config"
 	"github.com/fstab/grok_exporter/config/v2"
 	"github.com/fstab/grok_exporter/exporter"
@@ -24,11 +32,7 @@ import (
 	"github.com/fstab/grok_exporter/tailer"
 	"github.com/fstab/grok_exporter/tailer/fswatcher"
 	"github.com/fstab/grok_exporter/tailer/glob"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/sirupsen/logrus"
-	"os"
-	"strings"
-	"time"
+	"github.com/fstab/grok_exporter/tailer/position"
 )
 
 var (
@@ -54,6 +58,7 @@ func main() {
 		// warning is suppressed when '-showconfig' is used
 		fmt.Fprintf(os.Stderr, "%v\n", warn)
 	}
+	spew.Dump(cfg)
 	exitOnError(err)
 	if *showConfig {
 		fmt.Printf("%v\n", cfg)
@@ -293,7 +298,7 @@ func startServer(cfg v2.ServerConfig, httpHandlers []exporter.HttpServerPathHand
 
 func startTailer(cfg *v2.Config) (fswatcher.Interface, error) {
 	logger := logrus.New()
-	logger.Level = logrus.WarnLevel
+	logger.Level = logrus.DebugLevel
 	var tail fswatcher.Interface
 	g, err := glob.FromPath(cfg.Input.Path)
 	if err != nil {
@@ -301,10 +306,17 @@ func startTailer(cfg *v2.Config) (fswatcher.Interface, error) {
 	}
 	switch {
 	case cfg.Input.Type == "file":
+		pos, err := position.New(logger, cfg.Position.PositionFile, cfg.Position.SyncInterval)
+		if err != nil {
+			return nil, err
+		}
 		if cfg.Input.PollInterval == 0 {
-			tail, err = fswatcher.RunFileTailer([]glob.Glob{g}, cfg.Input.Readall, cfg.Input.FailOnMissingLogfile, logger)
+			tail, err = fswatcher.RunFileTailer([]glob.Glob{g}, pos, cfg.Input.FailOnMissingLogfile, logger)
 		} else {
-			tail, err = fswatcher.RunPollingFileTailer([]glob.Glob{g}, cfg.Input.Readall, cfg.Input.FailOnMissingLogfile, cfg.Input.PollInterval, logger)
+			tail, err = fswatcher.RunPollingFileTailer([]glob.Glob{g}, pos, cfg.Input.FailOnMissingLogfile, cfg.Input.PollInterval, logger)
+		}
+		if err != nil {
+			return nil, err
 		}
 	case cfg.Input.Type == "stdin":
 		tail = tailer.RunStdinTailer()

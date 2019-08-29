@@ -27,9 +27,11 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/fstab/grok_exporter/tailer/glob"
+	"github.com/fstab/grok_exporter/tailer/position"
 )
 
 type watcher struct {
+	pos          position.Interface
 	globs        []glob.Glob
 	tailConfig   tail.Config
 	logger       logrus.FieldLogger
@@ -40,7 +42,12 @@ type watcher struct {
 	done         chan struct{}
 }
 
-func RunFileTailer(globs []glob.Glob, readall bool, failOnMissingFile bool, log logrus.FieldLogger) (Interface, error) {
+func RunFileTailer(
+	globs []glob.Glob,
+	pos position.Interface,
+	failOnMissingFile bool,
+	log logrus.FieldLogger,
+) (Interface, error) {
 	dirs, Err := expandGlobs(globs)
 	if Err != nil {
 		return nil, Err
@@ -54,17 +61,15 @@ func RunFileTailer(globs []glob.Glob, readall bool, failOnMissingFile bool, log 
 	tailConfig := tail.Config{
 		Location: &tail.SeekInfo{
 			Offset: 0,
-			Whence: io.SeekEnd,
+			Whence: io.SeekStart,
 		},
 		ReOpen:    true,
 		MustExist: failOnMissingFile,
 		Follow:    true,
 	}
-	if readall {
-		tailConfig.Location.Whence = io.SeekStart
-	}
 
 	w := &watcher{
+		pos:          pos,
 		globs:        globs,
 		tailConfig:   tailConfig,
 		logger:       log.WithField("component", "watcher"),
@@ -110,7 +115,9 @@ func (w *watcher) init(dirs map[string]struct{}) {
 		}
 		for _, fi := range fis {
 			path := filepath.Join(dir, fi.Name())
-			w.watch(path)
+			if matchGlobs(path, w.globs) {
+				w.watch(path)
+			}
 		}
 	}
 }
