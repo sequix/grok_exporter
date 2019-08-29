@@ -65,8 +65,8 @@ watcher、poller实现fswatcher.Interface，提供以fsnotify和轮询两种形�
 
 初始化watcher、poller时注入position.Interface，其本质是一个 map[inode_number]offset，其内容会周期性同步到磁盘
 
-watcher使用 [fsnotify](https://github.com/fsnotify/fsnotify) 监听文件夹、[hpcloud/tail](https://github.com/hpcloud/tail) 监听文件，文件有变化时，将新内容发送到Lines
+watcher使用 [fsnotify](https://github.com/fsnotify/fsnotify) 监听文件夹、[hpcloud/tail](https://github.com/hpcloud/tail) 监听文件，文件有变化时，tailer将新内容发送到Lines
 
-poller周期性list文件夹，对每个匹配的日志文件开一个goroutine读取日志行，并发送到Lines
+poller周期性list文件夹，对每个匹配的日志文件开一个goroutine (file)读取日志行，并发送到Lines
 
-watcher和poller实现均使用 [Fan-In](https://github.com/tmrts/go-patterns/blob/master/messaging/fan_in.md) 模式
+tailer和file实现均使用 [Fan-In](https://github.com/tmrts/go-patterns/blob/master/messaging/fan_in.md) 模式
