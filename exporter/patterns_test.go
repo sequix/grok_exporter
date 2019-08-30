@@ -15,10 +15,11 @@
 package exporter
 
 import (
-	"github.com/fstab/grok_exporter/oniguruma"
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/sequix/grok_exporter/oniguruma"
 )
 
 func TestDefaultPatternsLoadSuccessfully(t *testing.T) {
@@ -30,7 +31,7 @@ func loadPatternDir(t *testing.T) *Patterns {
 	if len(*p) != 0 {
 		t.Errorf("Expected initial pattern list to be empty, but got len = %v\n", len(*p))
 	}
-	patternDir := filepath.Join(os.Getenv("GOPATH"), "src", "github.com", "fstab", "grok_exporter", "logstash-patterns-core", "patterns")
+	patternDir := filepath.Join(os.Getenv("GOPATH"), "src", "github.com", "sequix", "grok_exporter", "logstash-patterns-core", "patterns")
 	err := p.AddDir(patternDir)
 	if err != nil {
 		t.Errorf("Unexpected error: %v", err.Error())

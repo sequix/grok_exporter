@@ -7,10 +7,7 @@ grok_exporter mod
 
 ```shell
 # 先下载用到的pattern文件
-cd ./logstash-patterns-core
-git clone https://github.com/logstash-plugins/logstash-patterns-core.git
-mv logstash-patterns-core/patterns .
-rm -r logstash-patterns-core
+git submodule update --init --recursive
 
 # 运行
 go run grok_exporter.go -config config.yml
@@ -19,17 +16,27 @@ go run grok_exporter.go -config config.yml
 ```yaml
 global:
     config_version: 2
-# 新增position配置项，记录日志读取的偏移
-position:
-    # 偏移文件路径
-    position_file: ./position.json
-    # 偏移文件同步周期
-    sync_interval: 5s
+    # 日志级别：panic, fatal, error, warn, info, debug, trace
+    log_level: debug
 input:
     type: file
     path: ./dir/*.log
     readall: true
+    
+    # 偏移文件
+    position_file: ./position.json
+    
+    # 偏移文件同步周期
+    position_sync_interval: 5s
+    
+    # 指定poll_interval_seconds后会采用轮询方式读日志
     #poll_interval_seconds: 3
+    
+    # DO NOT USE THIS，长度超过max_line_size会被分为多行，分为多行后，不满足匹配格式
+    #max_line_size: 128
+    
+    # DO NOT USE THIS，每个文件 每秒 最多读多少行，hpcloud/tail在达到速率限制后，冷却1s完，不会自动去读余下内容
+    #max_lines_rate_per_file: 128
 grok:
     patterns_dir: ./logstash-patterns-core/patterns
     additional_patterns:
@@ -44,14 +51,14 @@ metrics:
 server:
     host: localhost
     port: 8989
+
 ```
 
 ```
-# 偏移文件以json保存日志文件的inode编号和偏移量
-
+# 偏移文件以json保存日志文件的文件系统号-inode编号和偏移量
 {
-    "4637271": 3213,
-    "6562434": 2650
+    "10302-642271": 941183,
+    "10302-64227b": 627455
 }
 ```
 

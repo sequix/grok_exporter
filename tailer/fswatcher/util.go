@@ -3,7 +3,7 @@ package fswatcher
 import (
 	"os"
 
-	"github.com/fstab/grok_exporter/tailer/glob"
+	"github.com/sequix/grok_exporter/tailer/glob"
 )
 
 // Gets the directory paths from the glob expressions,

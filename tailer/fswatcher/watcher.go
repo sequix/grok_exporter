@@ -20,14 +20,16 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/fsnotify/fsnotify"
 	"github.com/hpcloud/tail"
+	"github.com/hpcloud/tail/ratelimiter"
 	"github.com/sirupsen/logrus"
 
-	"github.com/fstab/grok_exporter/tailer/glob"
-	"github.com/fstab/grok_exporter/tailer/position"
+	"github.com/sequix/grok_exporter/tailer/glob"
+	"github.com/sequix/grok_exporter/tailer/position"
 )
 
 type watcher struct {
@@ -40,11 +42,14 @@ type watcher struct {
 	lines        chan *Line
 	errors       chan Error
 	done         chan struct{}
+	terminated   chan struct{}
 }
 
 func RunFileTailer(
 	globs []glob.Glob,
 	pos position.Interface,
+	maxLineSize int,
+	maxLinesPerSeconds uint16,
 	failOnMissingFile bool,
 	log logrus.FieldLogger,
 ) (Interface, error) {
@@ -66,6 +71,11 @@ func RunFileTailer(
 		ReOpen:    true,
 		MustExist: failOnMissingFile,
 		Follow:    true,
+		MaxLineSize: maxLineSize,
+	}
+
+	if maxLinesPerSeconds > 0 {
+		tailConfig.RateLimiter = ratelimiter.NewLeakyBucket(maxLinesPerSeconds, time.Second)
 	}
 
 	w := &watcher{
@@ -78,6 +88,7 @@ func RunFileTailer(
 		lines:        make(chan *Line),
 		errors:       make(chan Error),
 		done:         make(chan struct{}),
+		terminated:   make(chan struct{}),
 	}
 	w.init(dirs)
 	go w.run()
@@ -85,6 +96,7 @@ func RunFileTailer(
 }
 
 func (w *watcher) run() {
+	defer func() { close(w.terminated) }()
 	for {
 		select {
 		case event, ok := <-w.watcher.Events:
@@ -97,12 +109,14 @@ func (w *watcher) run() {
 			for _, t := range w.watchedFiles {
 				t.stop()
 			}
+			close(w.lines)
+			close(w.errors)
 			return
 		}
 	}
 }
 
-// list watchedDirs，获取所有需要监听的文件
+// list pollingDirs，获取所有需要监听的文件
 func (w *watcher) init(dirs map[string]struct{}) {
 	for dir := range dirs {
 		fis, err := ioutil.ReadDir(dir)
@@ -185,4 +199,5 @@ func (w *watcher) Errors() chan Error {
 
 func (w *watcher) Close() {
 	close(w.done)
+	<- w.terminated
 }

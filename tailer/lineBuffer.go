@@ -1,12 +1,11 @@
 package tailer
 
 import (
-	"io"
-	"log"
-	"sync"
 	"container/list"
+	"io"
+	"sync"
 
-	"github.com/fstab/grok_exporter/tailer/fswatcher"
+	"github.com/sequix/grok_exporter/tailer/fswatcher"
 )
 
 // lineBuffer is a thread safe queue for *fswatcher.Line.
@@ -52,13 +51,7 @@ func (b *lineBufferImpl) BlockingPop() *fswatcher.Line {
 		if !b.closed {
 			first := b.buffer.Front()
 			b.buffer.Remove(first)
-			switch line := first.Value.(type) {
-			case *fswatcher.Line:
-				return line
-			default:
-				// this cannot happen
-				log.Fatal("unexpected type in tailer b.buffer")
-			}
+			return first.Value.(*fswatcher.Line)
 		}
 	}
 	return nil

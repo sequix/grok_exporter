@@ -17,7 +17,7 @@ package v2
 import (
 	"errors"
 	"fmt"
-	"github.com/fstab/grok_exporter/template"
+	"github.com/sequix/grok_exporter/template"
 	"gopkg.in/yaml.v2"
 	"os"
 	"strconv"
@@ -26,6 +26,7 @@ import (
 )
 
 const (
+	defaultLogLevel               = "info"
 	defaultPositionsFile          = "/tmp/position.json"
 	defaultPositionSyncIntervcal  = 10 * time.Second
 	defaultRetentionCheckInterval = 53 * time.Second
@@ -48,32 +49,31 @@ func Unmarshal(config []byte) (*Config, error) {
 }
 
 type Config struct {
-	Global   GlobalConfig   `yaml:",omitempty"`
-	Input    InputConfig    `yaml:",omitempty"`
-	Grok     GrokConfig     `yaml:",omitempty"`
-	Metrics  MetricsConfig  `yaml:",omitempty"`
-	Server   ServerConfig   `yaml:",omitempty"`
-	Position PositionConfig `yaml:",omitempty"`
+	Global  GlobalConfig  `yaml:",omitempty"`
+	Input   InputConfig   `yaml:",omitempty"`
+	Grok    GrokConfig    `yaml:",omitempty"`
+	Metrics MetricsConfig `yaml:",omitempty"`
+	Server  ServerConfig  `yaml:",omitempty"`
 }
 
 type GlobalConfig struct {
 	ConfigVersion          int           `yaml:"config_version,omitempty"`
+	LogLevel               string        `yaml:"log_level,omitempty"`
 	RetentionCheckInterval time.Duration `yaml:"retention_check_interval,omitempty"` // implicitly parsed with time.ParseDuration()
-}
-
-type PositionConfig struct {
-	PositionFile string        `yaml:"position_file,omitempty"`
-	SyncInterval time.Duration `yaml:"sync_interval,omitempty"`
 }
 
 type InputConfig struct {
 	Type                       string        `yaml:",omitempty"`
 	Path                       string        `yaml:",omitempty"`
+	PositionFile               string        `yaml:"position_file,omitempty"`
+	SyncInterval               time.Duration `yaml:"position_sync_interval,omitempty"`
 	FailOnMissingLogfileString string        `yaml:"fail_on_missing_logfile,omitempty"` // cannot use bool directly, because yaml.v2 doesn't support true as default value.
 	FailOnMissingLogfile       bool          `yaml:"-"`
 	PollIntervalSeconds        string        `yaml:"poll_interval_seconds,omitempty"` // TODO: Use time.Duration directly
 	PollInterval               time.Duration `yaml:"-"`                               // parsed version of PollIntervalSeconds
 	MaxLinesInBuffer           int           `yaml:"max_lines_in_buffer,omitempty"`
+	MaxLineSize                int           `yaml:"max_line_size,omitempty"`
+	MaxLinesRatePerFile        uint16        `yaml:"max_lines_rate_per_file,omitempty"`
 	WebhookPath                string        `yaml:"webhook_path,omitempty"`
 	WebhookFormat              string        `yaml:"webhook_format,omitempty"`
 	WebhookJsonSelector        string        `yaml:"webhook_json_selector,omitempty"`
@@ -123,7 +123,6 @@ func (cfg *Config) addDefaults() {
 	}
 	cfg.Metrics.addDefaults()
 	cfg.Server.addDefaults()
-	cfg.Position.addDefaults()
 }
 
 func (c *GlobalConfig) addDefaults() {
@@ -133,14 +132,25 @@ func (c *GlobalConfig) addDefaults() {
 	if c.RetentionCheckInterval == 0 {
 		c.RetentionCheckInterval = defaultRetentionCheckInterval
 	}
+	if c.LogLevel == "" {
+		c.LogLevel = defaultLogLevel
+	}
 }
 
 func (c *InputConfig) addDefaults() {
 	if c.Type == "" {
 		c.Type = inputTypeStdin
 	}
-	if c.Type == inputTypeFile && len(c.FailOnMissingLogfileString) == 0 {
-		c.FailOnMissingLogfileString = "true"
+	if c.Type == inputTypeFile {
+		if c.PositionFile == "" {
+			c.PositionFile = defaultPositionsFile
+		}
+		if c.SyncInterval == 0 {
+			c.SyncInterval = defaultPositionSyncIntervcal
+		}
+		if len(c.FailOnMissingLogfileString) == 0 {
+			c.FailOnMissingLogfileString = "true"
+		}
 	}
 	if c.Type == inputTypeWebhook {
 		if len(c.WebhookPath) == 0 {
@@ -191,10 +201,6 @@ func (cfg *Config) validate() error {
 	if err != nil {
 		return err
 	}
-	err = cfg.Position.validate()
-	if err != nil {
-		return err
-	}
 	return nil
 }
 
@@ -213,6 +219,9 @@ func (c *InputConfig) validate() error {
 			return fmt.Errorf("invalid input configuration: 'input.path' is required for input type \"file\"")
 		}
 		if len(c.PollIntervalSeconds) > 0 { // TODO: Use duration directly, as with other durations in the config file
+			if c.MaxLinesRatePerFile != 0 {
+				return fmt.Errorf("cannot limit input speed when using poller")
+			}
 			nSeconds, err := strconv.Atoi(c.PollIntervalSeconds)
 			if err != nil {
 				return fmt.Errorf("invalid input configuration: '%v' is not a valid number in 'input.poll_interval_seconds'", c.PollIntervalSeconds)
@@ -224,6 +233,19 @@ func (c *InputConfig) validate() error {
 			if err != nil {
 				return fmt.Errorf("invalid input configuration: '%v' is not a valid boolean value in 'input.fail_on_missing_logfile'", c.FailOnMissingLogfileString)
 			}
+		}
+		fi, err := os.Stat(c.PositionFile)
+		if err != nil {
+			if !os.IsNotExist(err) {
+				return err
+			}
+		} else {
+			if fi.IsDir() {
+				return errors.New("expected a file for position_file")
+			}
+		}
+		if c.SyncInterval < time.Second {
+			return errors.New("expected sync_interval more than 1s")
 		}
 	case c.Type == inputTypeWebhook:
 		if c.WebhookPath == "" {
@@ -440,31 +462,4 @@ func (cfg *Config) marshalToString() string {
 	result = strings.Replace(result, "fail_on_missing_logfile: \"false\"", "fail_on_missing_logfile: false", -1)
 	result = strings.Replace(result, "fail_on_missing_logfile: \"true\"", "fail_on_missing_logfile: true", -1)
 	return result
-}
-
-func (cfg *PositionConfig) addDefaults() {
-	if cfg.PositionFile == "" {
-		cfg.PositionFile = defaultPositionsFile
-	}
-	if cfg.SyncInterval == 0 {
-		cfg.SyncInterval = defaultPositionSyncIntervcal
-	}
-}
-
-func (cfg *PositionConfig) validate() error {
-	fi, err := os.Stat(cfg.PositionFile)
-	if err != nil {
-		if !os.IsNotExist(err) {
-			return err
-		}
-	} else {
-		if fi.IsDir() {
-			return errors.New("expected a file for position_file")
-		}
-	}
-
-	if cfg.SyncInterval < time.Second {
-		return errors.New("expected sync_interval more than 1s")
-	}
-	return nil
 }

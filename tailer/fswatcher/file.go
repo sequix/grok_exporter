@@ -7,16 +7,20 @@ import (
 	"os"
 	"strings"
 
-	"github.com/fstab/grok_exporter/tailer/position"
-	"github.com/fstab/grok_exporter/util"
+	"github.com/sequix/grok_exporter/tailer/position"
+	"github.com/sequix/grok_exporter/util"
 )
 
 type file struct {
 	*os.File
 	*bufio.Reader
-	pos  position.Interface
-	ino  uint64
-	path string
+	lines      chan *Line
+	errors     chan Error
+	pos        position.Interface
+	devIno     string
+	path       string
+	done       chan struct{}
+	terminated chan struct{}
 }
 
 func (p *poller) newFile(path string) (*file, error) {
@@ -25,12 +29,12 @@ func (p *poller) newFile(path string) (*file, error) {
 		return nil, err
 	}
 
-	ino, err := util.InodeNoFromFilepath(path)
+	devIno, err := util.DevInodeNoFromFilePath(path)
 	if err != nil {
 		return nil, err
 	}
 
-	offset := p.pos.GetOffset(ino)
+	offset := p.pos.GetOffset(devIno)
 	p.logger.Debug(fmt.Sprintf("new file %s at %d", path, offset))
 
 	if _, err := f.Seek(offset, io.SeekStart); err != nil {
@@ -38,27 +42,58 @@ func (p *poller) newFile(path string) (*file, error) {
 	}
 
 	return &file{
-		ino:    ino,
-		path:   path,
-		pos:    p.pos,
-		File:   f,
-		Reader: bufio.NewReader(f),
-	}, err
+		lines:      p.lines,
+		errors:     p.errors,
+		devIno:     devIno,
+		path:       path,
+		pos:        p.pos,
+		File:       f,
+		Reader:     bufio.NewReader(f),
+		done:       make(chan struct{}),
+		terminated: make(chan struct{}),
+	}, nil
 }
 
-func (f *file) readline() (*Line, error) {
-	// builder 内部使用 []byte 和 unsafe.Pointer 避免内存分配和类型转换
-	result := strings.Builder{}
+func (f *file) run() {
+	defer f.finalize()
 	for {
-		// bufio.Reader.ReadLine会利用reader的缓存，大小通常是文件系统的块大小
-		partial, isPrefix, err := f.ReadLine()
+		line, err := f.readline()
 		if err != nil {
-			return nil, err
+			if err == io.EOF {
+				return
+			}
+			select {
+			case f.errors <- NewErrorf(NotSpecified, err, "reading file %s", f.path):
+			case <-f.done:
+				return
+			}
+		} else {
+			select {
+			case f.lines <- line:
+			case <-f.done:
+				return
+			}
 		}
-		result.Write(partial)
-		if !isPrefix {
-			break
-		}
+	}
+}
+
+func (f *file) finalize() {
+	if err := f.Close(); err != nil {
+		f.errors <- NewErrorf(NotSpecified, err, "close file %s", f.path)
+	}
+	close(f.terminated)
+}
+
+func (f *file) stop() {
+	close(f.done)
+	<-f.terminated
+}
+
+// 不支持mac换行符\r
+func (f *file) readline() (*Line, error) {
+	lineStr, err := f.ReadString('\n')
+	if err != nil {
+		return nil, err
 	}
 
 	// 更新文件偏移
@@ -66,10 +101,10 @@ func (f *file) readline() (*Line, error) {
 	if err != nil {
 		return nil, err
 	}
-	f.pos.SetOffset(f.ino, offset)
+	f.pos.SetOffset(f.devIno, offset)
 
 	return &Line{
-		Line: result.String(),
+		Line: strings.TrimRight(lineStr, "\r\n"),
 		File: f.path,
 	}, nil
 }

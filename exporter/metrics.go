@@ -16,9 +16,9 @@ package exporter
 
 import (
 	"fmt"
-	configuration "github.com/fstab/grok_exporter/config/v2"
-	"github.com/fstab/grok_exporter/oniguruma"
-	"github.com/fstab/grok_exporter/template"
+	configuration "github.com/sequix/grok_exporter/config/v2"
+	"github.com/sequix/grok_exporter/oniguruma"
+	"github.com/sequix/grok_exporter/template"
 	"github.com/prometheus/client_golang/prometheus"
 	"strconv"
 	"time"

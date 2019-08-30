@@ -7,26 +7,27 @@ import (
 	"syscall"
 )
 
-func InodeNoFromFileInfo(fi os.FileInfo) (uint64, error) {
+func DevInodeNoFromFileInfo(fi os.FileInfo) (string, error) {
 	st, ok := fi.Sys().(*syscall.Stat_t)
 	if !ok {
-		return 0, errors.New(fmt.Sprintf("%s: cannot get *syscall.Stat_t", fi.Name()))
+		return "", errors.New(fmt.Sprintf("%s: cannot get *syscall.Stat_t", fi.Name()))
 	}
-	return st.Ino, nil
+	return fmt.Sprintf("%x-%x", st.Dev, st.Ino), nil
 }
 
-func InodeNoFromFile(file *os.File) (uint64, error) {
+func DevInodeNoFromFile(file *os.File) (string, error) {
 	fi, err := file.Stat()
 	if err != nil {
-		return 0, err
+		return "", err
 	}
-	return InodeNoFromFileInfo(fi)
+	return DevInodeNoFromFileInfo(fi)
 }
 
-func InodeNoFromFilepath(path string) (uint64, error) {
+func DevInodeNoFromFilePath(path string) (string, error) {
 	fi, err := os.Stat(path)
 	if err != nil {
-		return 0, err
+		return "", err
 	}
-	return InodeNoFromFileInfo(fi)
+	return DevInodeNoFromFileInfo(fi)
 }
+

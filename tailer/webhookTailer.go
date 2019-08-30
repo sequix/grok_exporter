@@ -17,8 +17,8 @@ package tailer
 import (
 	"errors"
 	json "github.com/bitly/go-simplejson"
-	"github.com/fstab/grok_exporter/config/v2"
-	"github.com/fstab/grok_exporter/tailer/fswatcher"
+	"github.com/sequix/grok_exporter/config/v2"
+	"github.com/sequix/grok_exporter/tailer/fswatcher"
 	"github.com/sirupsen/logrus"
 	"io/ioutil"
 	"net/http"

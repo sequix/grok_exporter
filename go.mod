@@ -1,4 +1,4 @@
-module github.com/fstab/grok_exporter
+module github.com/sequix/grok_exporter
 
 require (
 	github.com/bitly/go-simplejson v0.5.0
@@ -10,6 +10,7 @@ require (
 	github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826
 	github.com/prometheus/client_golang v0.9.4
 	github.com/prometheus/client_model v0.0.0-20190129233127-fd36f4220a90
+	github.com/prometheus/common v0.4.1
 	github.com/sirupsen/logrus v1.4.2
 	gopkg.in/fsnotify.v1 v1.4.7 // indirect
 	gopkg.in/tomb.v1 v1.0.0-20141024135613-dd632973f1e7 // indirect

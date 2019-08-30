@@ -21,24 +21,24 @@ import (
 	"strings"
 	"time"
 
-	"github.com/davecgh/go-spew/spew"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
 
-	"github.com/fstab/grok_exporter/config"
-	"github.com/fstab/grok_exporter/config/v2"
-	"github.com/fstab/grok_exporter/exporter"
-	"github.com/fstab/grok_exporter/oniguruma"
-	"github.com/fstab/grok_exporter/tailer"
-	"github.com/fstab/grok_exporter/tailer/fswatcher"
-	"github.com/fstab/grok_exporter/tailer/glob"
-	"github.com/fstab/grok_exporter/tailer/position"
+	"github.com/sequix/grok_exporter/config"
+	"github.com/sequix/grok_exporter/config/v2"
+	"github.com/sequix/grok_exporter/exporter"
+	"github.com/sequix/grok_exporter/oniguruma"
+	"github.com/sequix/grok_exporter/tailer"
+	"github.com/sequix/grok_exporter/tailer/fswatcher"
+	"github.com/sequix/grok_exporter/tailer/glob"
+	"github.com/sequix/grok_exporter/tailer/position"
 )
 
 var (
 	printVersion = flag.Bool("version", false, "Print the grok_exporter version.")
 	configPath   = flag.String("config", "", "Path to the config file. Try '-config ./example/config.yml' to get started.")
 	showConfig   = flag.Bool("showconfig", false, "Print the current configuration to the console. Example: 'grok_exporter -showconfig -config ./example/config.yml'")
+	logLevel     = flag.String("loglevel", "", "log level: panic, fatal, error, warn, info, debug, trace")
 )
 
 const (
@@ -58,7 +58,9 @@ func main() {
 		// warning is suppressed when '-showconfig' is used
 		fmt.Fprintf(os.Stderr, "%v\n", warn)
 	}
-	spew.Dump(cfg)
+	if len(*logLevel) > 0 {
+		cfg.Global.LogLevel = *logLevel
+	}
 	exitOnError(err)
 	if *showConfig {
 		fmt.Printf("%v\n", cfg)
@@ -298,7 +300,11 @@ func startServer(cfg v2.ServerConfig, httpHandlers []exporter.HttpServerPathHand
 
 func startTailer(cfg *v2.Config) (fswatcher.Interface, error) {
 	logger := logrus.New()
-	logger.Level = logrus.DebugLevel
+	logLevel, err := logrus.ParseLevel(cfg.Global.LogLevel)
+	if err != nil {
+		return nil, err
+	}
+	logger.Level = logLevel
 	var tail fswatcher.Interface
 	g, err := glob.FromPath(cfg.Input.Path)
 	if err != nil {
@@ -306,14 +312,27 @@ func startTailer(cfg *v2.Config) (fswatcher.Interface, error) {
 	}
 	switch {
 	case cfg.Input.Type == "file":
-		pos, err := position.New(logger, cfg.Position.PositionFile, cfg.Position.SyncInterval)
+		pos, err := position.New(logger, cfg.Input.PositionFile, cfg.Input.SyncInterval)
 		if err != nil {
 			return nil, err
 		}
 		if cfg.Input.PollInterval == 0 {
-			tail, err = fswatcher.RunFileTailer([]glob.Glob{g}, pos, cfg.Input.FailOnMissingLogfile, logger)
+			tail, err = fswatcher.RunFileTailer(
+				[]glob.Glob{g},
+				pos,
+				cfg.Input.MaxLineSize,
+				cfg.Input.MaxLinesRatePerFile,
+				cfg.Input.FailOnMissingLogfile,
+				logger,
+			)
 		} else {
-			tail, err = fswatcher.RunPollingFileTailer([]glob.Glob{g}, pos, cfg.Input.FailOnMissingLogfile, cfg.Input.PollInterval, logger)
+			tail, err = fswatcher.RunPollingFileTailer(
+				[]glob.Glob{g},
+				pos,
+				cfg.Input.FailOnMissingLogfile,
+				cfg.Input.PollInterval,
+				logger,
+			)
 		}
 		if err != nil {
 			return nil, err

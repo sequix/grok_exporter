@@ -15,8 +15,9 @@
 package exporter
 
 import (
-	configuration "github.com/fstab/grok_exporter/config/v2"
-	"github.com/fstab/grok_exporter/oniguruma"
+	configuration "github.com/sequix/grok_exporter/config/v2"
+	"github.com/sequix/grok_exporter/oniguruma"
+	"github.com/davecgh/go-spew/spew"
 	"gopkg.in/yaml.v2"
 	"strings"
 	"testing"
@@ -24,6 +25,7 @@ import (
 
 func TestGrok(t *testing.T) {
 	patterns := loadPatternDir(t)
+	spew.Dump(patterns)
 	t.Run("compile all patterns", func(t *testing.T) {
 		testCompileAllPatterns(t, patterns)
 	})

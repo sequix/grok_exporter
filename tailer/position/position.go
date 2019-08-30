@@ -13,8 +13,8 @@ import (
 const positionFileMode = 0600
 
 type Interface interface {
-	GetOffset(ino uint64) int64
-	SetOffset(ino uint64, offset int64)
+	GetOffset(devIno string) int64
+	SetOffset(devIno string, offset int64)
 }
 
 // 记录日志读取的offset
@@ -23,7 +23,7 @@ type position struct {
 	logger       logrus.FieldLogger
 	path         string
 	interval     time.Duration
-	offsets      map[uint64]int64 // ino -> offset
+	offsets      map[string]int64 // ino -> offset
 	done         chan struct{}
 }
 
@@ -36,7 +36,7 @@ func New(log logrus.FieldLogger, positionFilePath string, syncInterval time.Dura
 		buf = []byte("{}")
 	}
 
-	offsets := make(map[uint64]int64)
+	offsets := make(map[string]int64)
 	if err := json.Unmarshal(buf, &offsets); err != nil {
 		return nil, err
 	}
@@ -93,18 +93,18 @@ func (p *position) sync() {
 	}
 }
 
-func (p *position) GetOffset(ino uint64) int64 {
+func (p *position) GetOffset(devIno string) int64 {
 	p.mutex.RLock()
 	defer p.mutex.RUnlock()
-	offset, ok := p.offsets[ino]
+	offset, ok := p.offsets[devIno]
 	if !ok {
 		return 0
 	}
 	return offset
 }
 
-func (p *position) SetOffset(ino uint64, offset int64) {
+func (p *position) SetOffset(devIno string, offset int64) {
 	p.mutex.Lock()
 	defer p.mutex.Unlock()
-	p.offsets[ino] = offset
+	p.offsets[devIno] = offset
 }

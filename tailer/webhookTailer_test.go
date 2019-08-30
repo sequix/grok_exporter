@@ -16,7 +16,7 @@ package tailer
 
 import (
 	"fmt"
-	"github.com/fstab/grok_exporter/config/v2"
+	"github.com/sequix/grok_exporter/config/v2"
 	"strings"
 	"testing"
 )

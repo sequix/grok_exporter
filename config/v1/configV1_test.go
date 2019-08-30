@@ -23,7 +23,6 @@ const v1cfg = `
 input:
     type: file
     path: x/x/x
-    readall: true
 grok:
     patterns_dir: b/c
 metrics:
@@ -74,7 +73,8 @@ global:
 input:
     type: file
     path: x/x/x
-    readall: true
+	position_file: /tmp/position.json
+	position_sync_interval: 10s
 grok:
     patterns_dir: b/c
 metrics:
