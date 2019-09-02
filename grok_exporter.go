@@ -54,14 +54,15 @@ func main() {
 	}
 	validateCommandLineOrExit()
 	cfg, warn, err := config.LoadConfigFile(*configPath)
+	exitOnError(err)
 	if len(warn) > 0 && !*showConfig {
 		// warning is suppressed when '-showconfig' is used
 		fmt.Fprintf(os.Stderr, "%v\n", warn)
 	}
+	cfg.LoadEnvironments()
 	if len(*logLevel) > 0 {
 		cfg.Global.LogLevel = *logLevel
 	}
-	exitOnError(err)
 	if *showConfig {
 		fmt.Printf("%v\n", cfg)
 		return

@@ -16,12 +16,13 @@ package config
 
 import (
 	"fmt"
-	"github.com/sequix/grok_exporter/config/v1"
-	"github.com/sequix/grok_exporter/config/v2"
 	"io/ioutil"
 	"regexp"
 	"strconv"
 	"strings"
+
+	"github.com/sequix/grok_exporter/config/v1"
+	"github.com/sequix/grok_exporter/config/v2"
 )
 
 // Example config: See ./example/config.yml

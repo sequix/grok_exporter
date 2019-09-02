@@ -20,10 +20,11 @@ global:
     log_level: debug
 input:
     type: file
-    path: ./dir/*.log
-    readall: true
     
-    # 偏移文件
+     # 可使用环境变量指定 GROK_INPUT_FILE
+    path: ./dir/*.log
+        
+    # 偏移文件,可使用环境变量指定 GROK_INPUT_POSITION
     position_file: ./position.json
     
     # 偏移文件同步周期

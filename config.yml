@@ -3,16 +3,22 @@ global:
     log_level: debug
 input:
     type: file
+
+    # 可使用环境变量GROK_INPUT_FILE指定
     path: ./dir/*.log
-    readall: true
-    # 偏移文件
+
+    # 偏移文件,可使用环境变量GROK_INPUT_POSITION指定
     position_file: ./position.json
+
     # 偏移文件同步周期
     position_sync_interval: 5s
+
     # 长度超过max_line_size会被分为多行
     #max_line_size: 128
+
     # 每个文件 每秒 最多读多少行
     #max_lines_rate_per_file: 128
+
     # 指定poll_interval_seconds后会采用轮询方式读日志
     #poll_interval_seconds: 3
 grok:

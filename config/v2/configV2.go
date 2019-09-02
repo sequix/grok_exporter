@@ -114,7 +114,18 @@ type ServerConfig struct {
 	Key      string `yaml:",omitempty"`
 }
 
-func (cfg *Config) addDefaults() {
+func (cfg *Config) LoadEnvironments() {
+	inputFile := os.Getenv("GROK_INPUT_FILE")
+	if inputFile != "" {
+		cfg.Input.Path = inputFile
+	}
+	position := os.Getenv("GROK_INPUT_POSITION")
+	if position != "" {
+		cfg.Input.PositionFile = position
+	}
+}
+
+func (cfg *Config) AddDefaults() {
 	cfg.Global.addDefaults()
 	cfg.Input.addDefaults()
 	cfg.Grok.addDefaults()
@@ -383,7 +394,7 @@ func (c *ServerConfig) validate() error {
 // Made this public so it can be called when converting config v1 to config v2.
 func AddDefaultsAndValidate(cfg *Config) error {
 	var err error
-	cfg.addDefaults()
+	cfg.AddDefaults()
 	for i := range []MetricConfig(cfg.Metrics) {
 		err = cfg.Metrics[i].InitTemplates()
 		if err != nil {
