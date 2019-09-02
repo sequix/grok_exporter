@@ -4,10 +4,10 @@ global:
 input:
     type: file
 
-    # 可使用环境变量GROK_INPUT_FILE指定
-    path: ./dir/*.log
+    # 配置文件路径，支持环境变量
+    path: ${test}
 
-    # 偏移文件,可使用环境变量GROK_INPUT_POSITION指定
+    # 偏移文件,支持环境变量
     position_file: ./position.json
 
     # 偏移文件同步周期
