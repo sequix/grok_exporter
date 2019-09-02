@@ -125,7 +125,7 @@ func (cfg *Config) LoadEnvironments() {
 	}
 }
 
-func (cfg *Config) AddDefaults() {
+func (cfg *Config) addDefaults() {
 	cfg.Global.addDefaults()
 	cfg.Input.addDefaults()
 	cfg.Grok.addDefaults()
@@ -394,7 +394,7 @@ func (c *ServerConfig) validate() error {
 // Made this public so it can be called when converting config v1 to config v2.
 func AddDefaultsAndValidate(cfg *Config) error {
 	var err error
-	cfg.AddDefaults()
+	cfg.addDefaults()
 	for i := range []MetricConfig(cfg.Metrics) {
 		err = cfg.Metrics[i].InitTemplates()
 		if err != nil {
