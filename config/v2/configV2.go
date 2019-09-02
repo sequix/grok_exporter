@@ -115,11 +115,11 @@ type ServerConfig struct {
 }
 
 func (cfg *Config) LoadEnvironments() {
-	inputFile := os.Getenv("GROK_INPUT_FILE")
+	inputFile := os.ExpandEnv("GROK_INPUT_FILE")
 	if inputFile != "" {
 		cfg.Input.Path = inputFile
 	}
-	position := os.Getenv("GROK_INPUT_POSITION")
+	position := os.ExpandEnv("GROK_INPUT_POSITION")
 	if position != "" {
 		cfg.Input.PositionFile = position
 	}
