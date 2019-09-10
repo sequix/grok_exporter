@@ -2,12 +2,14 @@ package position
 
 import (
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"sync"
 	"time"
 
 	"github.com/sirupsen/logrus"
+	"github.com/pkg/errors"
 )
 
 const positionFileMode = 0600
@@ -31,14 +33,18 @@ func New(log logrus.FieldLogger, positionFilePath string, syncInterval time.Dura
 	buf, err := ioutil.ReadFile(positionFilePath)
 	if err != nil {
 		if !os.IsNotExist(err) {
-			return nil, err
+
+			return nil, errors.Wrap(err, "position read file failed")
 		}
+	}
+
+	if len(buf) == 0 {
 		buf = []byte("{}")
 	}
 
 	offsets := make(map[string]int64)
 	if err := json.Unmarshal(buf, &offsets); err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "position unmarshal failed")
 	}
 
 	p := &position{
@@ -76,6 +82,7 @@ func (p *position) sync() {
 		p.logger.Error("open position file " + p.path)
 		return
 	}
+	defer f.Close()
 
 	p.mutex.RLock()
 
