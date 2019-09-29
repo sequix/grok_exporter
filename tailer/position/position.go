@@ -2,14 +2,13 @@ package position
 
 import (
 	"encoding/json"
-	"fmt"
 	"io/ioutil"
 	"os"
 	"sync"
 	"time"
 
-	"github.com/sirupsen/logrus"
 	"github.com/pkg/errors"
+	"github.com/sirupsen/logrus"
 )
 
 const positionFileMode = 0600
@@ -25,7 +24,7 @@ type position struct {
 	logger       logrus.FieldLogger
 	path         string
 	interval     time.Duration
-	offsets      map[string]int64 // ino -> offset
+	offsets      map[string]int64 // dev,ino -> offset
 	done         chan struct{}
 }
 
@@ -33,7 +32,6 @@ func New(log logrus.FieldLogger, positionFilePath string, syncInterval time.Dura
 	buf, err := ioutil.ReadFile(positionFilePath)
 	if err != nil {
 		if !os.IsNotExist(err) {
-
 			return nil, errors.Wrap(err, "position read file failed")
 		}
 	}

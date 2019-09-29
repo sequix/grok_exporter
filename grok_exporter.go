@@ -300,7 +300,14 @@ func startServer(cfg v2.ServerConfig, httpHandlers []exporter.HttpServerPathHand
 }
 
 func startTailer(cfg *v2.Config) (fswatcher.Interface, error) {
+	fmter := new(logrus.TextFormatter)
+	fmter.TimestampFormat = "2006/01/02 15:04:05"
+	logrus.SetFormatter(fmter)
+	fmter.FullTimestamp = true
+
 	logger := logrus.New()
+	logger.Formatter = fmter
+
 	logLevel, err := logrus.ParseLevel(cfg.Global.LogLevel)
 	if err != nil {
 		return nil, err
