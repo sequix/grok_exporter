@@ -9,6 +9,12 @@ type memPos struct {
 	pos map[string]int64
 }
 
+func (m *memPos) DelOffset(devIno string) {
+	m.mutex.Lock()
+	delete(m.pos, devIno)
+	m.mutex.Unlock()
+}
+
 func NewMemPos() Interface {
 	return &memPos{
 		mutex: &sync.RWMutex{},
@@ -24,7 +30,9 @@ func (m *memPos) GetOffset(devIno string) int64 {
 
 func (m *memPos) SetOffset(devIno string, offset int64) {
 	m.mutex.Lock()
-	defer m.mutex.Unlock()
 	m.pos[devIno] = offset
+	m.mutex.Unlock()
 }
 
+func (m *memPos) Stop() {
+}

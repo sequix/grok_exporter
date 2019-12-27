@@ -13,6 +13,8 @@ import (
 	"github.com/sequix/grok_exporter/tailer/position"
 )
 
+// TODO file idle timeout
+
 type poller struct {
 	pos               position.Interface
 	failOnMissingFile bool
@@ -32,6 +34,7 @@ func RunPollingFileTailer(
 	pos position.Interface,
 	failOnMissingFile bool,
 	pollInterval time.Duration,
+	fileIdleTimeout time.Duration,
 	log logrus.FieldLogger,
 ) (Interface, error) {
 	dirs, Err := expandGlobs(globs)

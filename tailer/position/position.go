@@ -16,16 +16,19 @@ const positionFileMode = 0600
 type Interface interface {
 	GetOffset(devIno string) int64
 	SetOffset(devIno string, offset int64)
+	DelOffset(devIno string)
+	Stop()
 }
 
 // 记录日志读取的offset
 type position struct {
-	mutex        *sync.RWMutex
-	logger       logrus.FieldLogger
-	path         string
-	interval     time.Duration
-	offsets      map[string]int64 // dev,ino -> offset
-	done         chan struct{}
+	mutex      *sync.RWMutex
+	logger     logrus.FieldLogger
+	path       string
+	interval   time.Duration
+	offsets    map[string]int64 // dev,ino -> offset
+	done       chan struct{}
+	terminated chan struct{}
 }
 
 func New(log logrus.FieldLogger, positionFilePath string, syncInterval time.Duration) (Interface, error) {
@@ -46,11 +49,13 @@ func New(log logrus.FieldLogger, positionFilePath string, syncInterval time.Dura
 	}
 
 	p := &position{
-		mutex:    &sync.RWMutex{},
-		logger:   log.WithField("component", "position"),
-		path:     positionFilePath,
-		interval: syncInterval,
-		offsets:  offsets,
+		mutex:      &sync.RWMutex{},
+		logger:     log.WithField("component", "position"),
+		path:       positionFilePath,
+		interval:   syncInterval,
+		offsets:    offsets,
+		done:       make(chan struct{}),
+		terminated: make(chan struct{}),
 	}
 	go p.run()
 	return p, nil
@@ -59,19 +64,22 @@ func New(log logrus.FieldLogger, positionFilePath string, syncInterval time.Dura
 func (p *position) run() {
 	tick := time.NewTimer(p.interval)
 	defer tick.Stop()
+	defer close(p.terminated)
 	for {
 		tick.Reset(p.interval)
 		select {
 		case <-tick.C:
 			p.sync()
 		case <-p.done:
+			p.sync()
 			return
 		}
 	}
 }
 
-func (p *position) stop() {
+func (p *position) Stop() {
 	close(p.done)
+	<-p.terminated
 }
 
 func (p *position) sync() {
@@ -110,6 +118,12 @@ func (p *position) GetOffset(devIno string) int64 {
 
 func (p *position) SetOffset(devIno string, offset int64) {
 	p.mutex.Lock()
-	defer p.mutex.Unlock()
 	p.offsets[devIno] = offset
+	p.mutex.Unlock()
+}
+
+func (p *position) DelOffset(devIno string) {
+	p.mutex.Lock()
+	delete(p.offsets, devIno)
+	p.mutex.Unlock()
 }

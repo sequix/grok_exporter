@@ -325,20 +325,24 @@ func startTailer(cfg *v2.Config) (fswatcher.Interface, error) {
 			return nil, err
 		}
 		if cfg.Input.PollInterval == 0 {
+			logger.Infof("Start watching for %q", cfg.Input.Path)
 			tail, err = fswatcher.RunFileTailer(
 				[]glob.Glob{g},
 				pos,
 				cfg.Input.MaxLineSize,
 				cfg.Input.MaxLinesRatePerFile,
 				cfg.Input.FailOnMissingLogfile,
+				cfg.Input.MaxFileIdleTimeout,
 				logger,
 			)
 		} else {
+			logger.Infof("Start polling for %q", cfg.Input.Path)
 			tail, err = fswatcher.RunPollingFileTailer(
 				[]glob.Glob{g},
 				pos,
 				cfg.Input.FailOnMissingLogfile,
 				cfg.Input.PollInterval,
+				cfg.Input.MaxFileIdleTimeout,
 				logger,
 			)
 		}

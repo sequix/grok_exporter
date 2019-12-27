@@ -30,19 +30,21 @@ import (
 
 	"github.com/sequix/grok_exporter/tailer/glob"
 	"github.com/sequix/grok_exporter/tailer/position"
+	"github.com/sequix/grok_exporter/util"
 )
 
 type watcher struct {
-	pos          position.Interface
-	globs        []glob.Glob
-	tailConfig   tail.Config
-	logger       logrus.FieldLogger
-	watcher      *fsnotify.Watcher
-	watchedFiles map[string]*tailer
-	lines        chan *Line
-	errors       chan Error
-	done         chan struct{}
-	terminated   chan struct{}
+	pos         position.Interface
+	globs       []glob.Glob
+	tailConfig  tail.Config
+	idleTimeout time.Duration
+	logger      logrus.FieldLogger
+	watcher     *fsnotify.Watcher
+	tailers     map[string]*tailer
+	lines       chan *Line
+	errors      chan Error
+	done        chan struct{}
+	terminated  chan struct{}
 }
 
 func RunFileTailer(
@@ -51,6 +53,7 @@ func RunFileTailer(
 	maxLineSize int,
 	maxLinesPerSeconds uint16,
 	failOnMissingFile bool,
+	fileIdleTimeout time.Duration,
 	log logrus.FieldLogger,
 ) (Interface, error) {
 	dirs, Err := expandGlobs(globs)
@@ -68,10 +71,13 @@ func RunFileTailer(
 			Offset: 0,
 			Whence: io.SeekStart,
 		},
-		ReOpen:    true,
-		MustExist: failOnMissingFile,
-		Follow:    true,
+		ReOpen:      true,
+		Follow:      true,
+		// 使用watch模式，在软链接变更时，无法拿到新的文件内容
+		// poll的周期是250ms，由hpcloud/tail包写死，无法改变
+		Poll:        true,
 		MaxLineSize: maxLineSize,
+		MustExist:   failOnMissingFile,
 	}
 
 	if maxLinesPerSeconds > 0 {
@@ -79,16 +85,17 @@ func RunFileTailer(
 	}
 
 	w := &watcher{
-		pos:          pos,
-		globs:        globs,
-		tailConfig:   tailConfig,
-		logger:       log.WithField("component", "watcher"),
-		watcher:      fw,
-		watchedFiles: make(map[string]*tailer),
-		lines:        make(chan *Line),
-		errors:       make(chan Error),
-		done:         make(chan struct{}),
-		terminated:   make(chan struct{}),
+		pos:         pos,
+		globs:       globs,
+		tailConfig:  tailConfig,
+		idleTimeout: fileIdleTimeout,
+		logger:      log.WithField("component", "watcher"),
+		watcher:     fw,
+		tailers:     map[string]*tailer{},
+		lines:       make(chan *Line),
+		errors:      make(chan Error),
+		done:        make(chan struct{}),
+		terminated:  make(chan struct{}),
 	}
 	w.init(dirs)
 	go w.run()
@@ -96,7 +103,11 @@ func RunFileTailer(
 }
 
 func (w *watcher) run() {
-	defer func() { close(w.terminated) }()
+	defer close(w.terminated)
+
+	ticker := time.NewTicker(w.idleTimeout)
+	defer ticker.Stop()
+
 	for {
 		select {
 		case event, ok := <-w.watcher.Events:
@@ -105,9 +116,11 @@ func (w *watcher) run() {
 			}
 			w.logger.Debug(spew.Sprintf("recv event %#v", event))
 			w.handle(event)
+		case now := <-ticker.C:
+			w.cleanIdleFiles(now)
 		case <-w.done:
-			for _, t := range w.watchedFiles {
-				t.stop()
+			for _, t := range w.tailers {
+				t.stop(false)
 			}
 			close(w.lines)
 			close(w.errors)
@@ -151,42 +164,65 @@ func (w *watcher) handle(event fsnotify.Event) {
 				f, err := os.OpenFile(path, os.O_RDONLY, 0666)
 				if err != nil {
 					if os.IsPermission(err) {
-						w.unwatch(path)
+						w.unwatch(path, false)
 					}
 					continue
 				}
 				f.Close()
 			}
 		case "RENAME":
-			fallthrough
+			w.unwatch(path, false)
 		case "REMOVE":
-			w.unwatch(path)
+			w.unwatch(path, true)
 		}
 	}
 }
 
 func (w *watcher) watch(path string) {
-	if _, existing := w.watchedFiles[path]; existing {
+	if _, existing := w.tailers[path]; existing {
 		return
 	}
-	w.logger.Debug("watch new file " + path)
+	w.logger.Info("watch new file " + path)
 	t, err := w.newTailer(path)
 	if err != nil {
 		w.errors <- NewErrorf(NotSpecified, err, "watch file %s failed", path)
 		return
 	}
-	w.watchedFiles[path] = t
+	w.tailers[path] = t
 	go t.run()
 }
 
-func (w *watcher) unwatch(path string) {
-	t, existing := w.watchedFiles[path]
-	if !existing {
+func (w *watcher) unwatch(path string, delPos bool) {
+	t, ok := w.tailers[path]
+	if !ok {
 		return
 	}
-	w.logger.Debug("unwatch file " + path)
-	t.stop()
-	delete(w.watchedFiles, path)
+	w.logger.Info("unwatch file " + path)
+	t.stop(delPos)
+	delete(w.tailers, path)
+}
+
+func (w *watcher) cleanIdleFiles(now time.Time) {
+	newTailers := make(map[string]*tailer)
+	for k, t := range w.tailers {
+		readAt := t.readAt.Load().(time.Time)
+		if now.Sub(readAt) >= w.idleTimeout {
+			w.logger.Info("unwatch timeout file " + t.path)
+			t.stop(false)
+			continue
+		}
+		newTailers[k] = t
+	}
+	w.tailers = newTailers
+}
+
+func (w *watcher) delPos(path string) error {
+	devIno, err := util.DevInodeNoFromFilePath(path)
+	if err != nil {
+		return err
+	}
+	w.pos.DelOffset(devIno)
+	return nil
 }
 
 func (w *watcher) Lines() chan *Line {
@@ -199,5 +235,5 @@ func (w *watcher) Errors() chan Error {
 
 func (w *watcher) Close() {
 	close(w.done)
-	<- w.terminated
+	<-w.terminated
 }

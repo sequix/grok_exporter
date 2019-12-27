@@ -5,7 +5,7 @@ input:
     type: file
 
     # 配置文件路径，支持环境变量
-    path: ${test}
+    path: test/*.log
 
     # 偏移文件,支持环境变量
     position_file: ./position.json
@@ -13,10 +13,18 @@ input:
     # 偏移文件同步周期
     position_sync_interval: 5s
 
-    # 长度超过max_line_size会被分为多行
+    # 文件多长时间没有写入关闭
+    max_file_idle_timeout: 60s
+
+    # 文件不存在时不退出
+    fail_on_missing_logfile: false
+
+    # 行长限制，超过限制，分为多行，默认不限制
     #max_line_size: 128
 
     # 每个文件 每秒 最多读多少行
+    # 若第一秒读超限制，则第二秒不读取，第三秒从文件末尾开始读取(会丢第2秒到第3秒的数据)
+    # 该行为由hpcloud/tail提供
     #max_lines_rate_per_file: 128
 
     # 指定poll_interval_seconds后会采用轮询方式读日志
@@ -33,5 +41,5 @@ metrics:
       labels:
           error_message: '{{.message}}'
 server:
-    host: localhost
+    host: 0.0.0.0
     port: 8989

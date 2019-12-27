@@ -28,8 +28,9 @@ import (
 const (
 	defaultLogLevel               = "info"
 	defaultPositionsFile          = "/tmp/position.json"
-	defaultPositionSyncIntervcal  = 10 * time.Second
-	defaultRetentionCheckInterval = 53 * time.Second
+	defaultPositionSyncIntervcal  = 500 * time.Millisecond
+	defaultRetentionCheckInterval = 60 * time.Second
+	defaultMaxFileIdleTimeout     = 60 * time.Second
 	inputTypeStdin                = "stdin"
 	inputTypeFile                 = "file"
 	inputTypeWebhook              = "webhook"
@@ -74,6 +75,7 @@ type InputConfig struct {
 	MaxLinesInBuffer           int           `yaml:"max_lines_in_buffer,omitempty"`
 	MaxLineSize                int           `yaml:"max_line_size,omitempty"`
 	MaxLinesRatePerFile        uint16        `yaml:"max_lines_rate_per_file,omitempty"`
+	MaxFileIdleTimeout         time.Duration `yaml:"max_file_idle_timeout,omitempty"`
 	WebhookPath                string        `yaml:"webhook_path,omitempty"`
 	WebhookFormat              string        `yaml:"webhook_format,omitempty"`
 	WebhookJsonSelector        string        `yaml:"webhook_json_selector,omitempty"`
@@ -143,10 +145,10 @@ func (c *GlobalConfig) addDefaults() {
 }
 
 func (c *InputConfig) addDefaults() {
-	if c.Type == "" {
+	switch c.Type {
+	case "", inputTypeStdin:
 		c.Type = inputTypeStdin
-	}
-	if c.Type == inputTypeFile {
+	case inputTypeFile:
 		if c.PositionFile == "" {
 			c.PositionFile = defaultPositionsFile
 		}
@@ -156,8 +158,10 @@ func (c *InputConfig) addDefaults() {
 		if len(c.FailOnMissingLogfileString) == 0 {
 			c.FailOnMissingLogfileString = "true"
 		}
-	}
-	if c.Type == inputTypeWebhook {
+		if c.MaxFileIdleTimeout == 0 {
+			c.MaxFileIdleTimeout = defaultMaxFileIdleTimeout
+		}
+	case inputTypeWebhook:
 		if len(c.WebhookPath) == 0 {
 			c.WebhookPath = "/webhook"
 		}
