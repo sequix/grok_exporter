@@ -20,7 +20,6 @@ import (
 	"github.com/sequix/grok_exporter/template"
 	"gopkg.in/yaml.v2"
 	"os"
-	"strconv"
 	"strings"
 	"time"
 )
@@ -29,6 +28,7 @@ const (
 	defaultLogLevel               = "info"
 	defaultPositionsFile          = "/tmp/position.json"
 	defaultPositionSyncIntervcal  = 500 * time.Millisecond
+	defaultPollInterval           = 500 * time.Millisecond
 	defaultRetentionCheckInterval = 60 * time.Second
 	defaultMaxFileIdleTimeout     = 60 * time.Second
 	inputTypeStdin                = "stdin"
@@ -64,22 +64,21 @@ type GlobalConfig struct {
 }
 
 type InputConfig struct {
-	Type                       string        `yaml:",omitempty"`
-	Path                       string        `yaml:",omitempty"`
-	PositionFile               string        `yaml:"position_file,omitempty"`
-	SyncInterval               time.Duration `yaml:"position_sync_interval,omitempty"`
-	FailOnMissingLogfileString string        `yaml:"fail_on_missing_logfile,omitempty"` // cannot use bool directly, because yaml.v2 doesn't support true as default value.
-	FailOnMissingLogfile       bool          `yaml:"-"`
-	PollIntervalSeconds        string        `yaml:"poll_interval_seconds,omitempty"` // TODO: Use time.Duration directly
-	PollInterval               time.Duration `yaml:"-"`                               // parsed version of PollIntervalSeconds
-	MaxLinesInBuffer           int           `yaml:"max_lines_in_buffer,omitempty"`
-	MaxLineSize                int           `yaml:"max_line_size,omitempty"`
-	MaxLinesRatePerFile        uint16        `yaml:"max_lines_rate_per_file,omitempty"`
-	MaxFileIdleTimeout         time.Duration `yaml:"max_file_idle_timeout,omitempty"`
-	WebhookPath                string        `yaml:"webhook_path,omitempty"`
-	WebhookFormat              string        `yaml:"webhook_format,omitempty"`
-	WebhookJsonSelector        string        `yaml:"webhook_json_selector,omitempty"`
-	WebhookTextBulkSeparator   string        `yaml:"webhook_text_bulk_separator,omitempty"`
+	CollectMode              string        `yaml:"collectMode,omitempty"`
+	Type                     string        `yaml:",omitempty"`
+	Path                     []string      `yaml:",omitempty"`
+	Excludes                 []string      `yaml:",omitempty"`
+	PositionFile             string        `yaml:"position_file,omitempty"`
+	SyncInterval             time.Duration `yaml:"position_sync_interval,omitempty"`
+	PollInterval             time.Duration `yaml:"poll_interval,omitempty"`
+	MaxLinesInBuffer         int           `yaml:"max_lines_in_buffer,omitempty"`
+	MaxLineSize              int           `yaml:"max_line_size,omitempty"`
+	MaxLinesRatePerFile      uint16        `yaml:"max_lines_rate_per_file,omitempty"`
+	IdleTimeout              time.Duration `yaml:"idle_timeout,omitempty"`
+	WebhookPath              string        `yaml:"webhook_path,omitempty"`
+	WebhookFormat            string        `yaml:"webhook_format,omitempty"`
+	WebhookJsonSelector      string        `yaml:"webhook_json_selector,omitempty"`
+	WebhookTextBulkSeparator string        `yaml:"webhook_text_bulk_separator,omitempty"`
 }
 
 type GrokConfig struct {
@@ -117,7 +116,16 @@ type ServerConfig struct {
 }
 
 func (cfg *Config) LoadEnvironments() {
-	cfg.Input.Path = os.ExpandEnv(cfg.Input.Path)
+	path := cfg.Input.Path
+	for i := range path {
+		path[i] = os.ExpandEnv(path[i])
+	}
+
+	excludes := cfg.Input.Excludes
+	for i := range excludes {
+		excludes[i] = os.ExpandEnv(excludes[i])
+	}
+
 	cfg.Input.PositionFile = os.ExpandEnv(cfg.Input.PositionFile)
 }
 
@@ -145,6 +153,12 @@ func (c *GlobalConfig) addDefaults() {
 }
 
 func (c *InputConfig) addDefaults() {
+	if len(c.CollectMode) == 0 {
+		c.CollectMode = "mixed"
+	}
+	if c.PollInterval == 0 {
+		c.PollInterval = defaultPollInterval
+	}
 	switch c.Type {
 	case "", inputTypeStdin:
 		c.Type = inputTypeStdin
@@ -155,11 +169,8 @@ func (c *InputConfig) addDefaults() {
 		if c.SyncInterval == 0 {
 			c.SyncInterval = defaultPositionSyncIntervcal
 		}
-		if len(c.FailOnMissingLogfileString) == 0 {
-			c.FailOnMissingLogfileString = "true"
-		}
-		if c.MaxFileIdleTimeout == 0 {
-			c.MaxFileIdleTimeout = defaultMaxFileIdleTimeout
+		if c.IdleTimeout == 0 {
+			c.IdleTimeout = defaultMaxFileIdleTimeout
 		}
 	case inputTypeWebhook:
 		if len(c.WebhookPath) == 0 {
@@ -214,33 +225,21 @@ func (cfg *Config) validate() error {
 }
 
 func (c *InputConfig) validate() error {
-	var err error
 	switch {
 	case c.Type == inputTypeStdin:
-		if c.Path != "" {
+		if len(c.Path) == 0 {
 			return fmt.Errorf("invalid input configuration: cannot use 'input.path' when 'input.type' is stdin")
 		}
-		if c.PollIntervalSeconds != "" {
+		if c.PollInterval != 0 {
 			return fmt.Errorf("invalid input configuration: cannot use 'input.poll_interval_seconds' when 'input.type' is stdin")
 		}
 	case c.Type == inputTypeFile:
-		if c.Path == "" {
+		if len(c.Path) == 0 {
 			return fmt.Errorf("invalid input configuration: 'input.path' is required for input type \"file\"")
 		}
-		if len(c.PollIntervalSeconds) > 0 { // TODO: Use duration directly, as with other durations in the config file
+		if c.PollInterval > 0 {
 			if c.MaxLinesRatePerFile != 0 {
 				return fmt.Errorf("cannot limit input speed when using poller")
-			}
-			nSeconds, err := strconv.Atoi(c.PollIntervalSeconds)
-			if err != nil {
-				return fmt.Errorf("invalid input configuration: '%v' is not a valid number in 'input.poll_interval_seconds'", c.PollIntervalSeconds)
-			}
-			c.PollInterval = time.Duration(nSeconds) * time.Second
-		}
-		if len(c.FailOnMissingLogfileString) > 0 {
-			c.FailOnMissingLogfile, err = strconv.ParseBool(c.FailOnMissingLogfileString)
-			if err != nil {
-				return fmt.Errorf("invalid input configuration: '%v' is not a valid boolean value in 'input.fail_on_missing_logfile'", c.FailOnMissingLogfileString)
 			}
 		}
 		fi, err := os.Stat(c.PositionFile)
@@ -446,9 +445,6 @@ func (cfg *Config) String() string {
 	stripped := cfg.copy()
 	if stripped.Global.RetentionCheckInterval == defaultRetentionCheckInterval {
 		stripped.Global.RetentionCheckInterval = 0
-	}
-	if stripped.Input.FailOnMissingLogfileString == "true" {
-		stripped.Input.FailOnMissingLogfileString = ""
 	}
 	if stripped.Server.Path == "/metrics" {
 		stripped.Server.Path = ""

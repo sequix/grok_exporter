@@ -22,10 +22,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/davecgh/go-spew/spew"
 	"github.com/fsnotify/fsnotify"
-	"github.com/hpcloud/tail"
-	"github.com/hpcloud/tail/ratelimiter"
+	"github.com/sequix/tail"
+	"github.com/sequix/tail/ratelimiter"
 	"github.com/sirupsen/logrus"
 
 	"github.com/sequix/grok_exporter/tailer/glob"
@@ -36,6 +35,7 @@ import (
 type watcher struct {
 	pos         position.Interface
 	globs       []glob.Glob
+	excludes    []glob.Glob
 	tailConfig  tail.Config
 	idleTimeout time.Duration
 	logger      logrus.FieldLogger
@@ -49,10 +49,11 @@ type watcher struct {
 
 func RunFileTailer(
 	globs []glob.Glob,
+	excludes []glob.Glob,
 	pos position.Interface,
 	maxLineSize int,
 	maxLinesPerSeconds uint16,
-	failOnMissingFile bool,
+	pollInterval time.Duration,
 	fileIdleTimeout time.Duration,
 	log logrus.FieldLogger,
 ) (Interface, error) {
@@ -71,15 +72,14 @@ func RunFileTailer(
 			Offset: 0,
 			Whence: io.SeekStart,
 		},
-		ReOpen:      true,
-		Follow:      true,
-		// 使用watch模式，在软链接变更时，无法拿到新的文件内容
-		// poll的周期是250ms，由hpcloud/tail包写死，无法改变
-		Poll:        true,
-		MaxLineSize: maxLineSize,
-		MustExist:   failOnMissingFile,
+		ReOpen: true,
+		Follow: true,
+		PollInterval: pollInterval,
+		MaxLineSize:  maxLineSize,
+		MustExist:    false,
 	}
 
+	// TODO 不掉日志的速率限制
 	if maxLinesPerSeconds > 0 {
 		tailConfig.RateLimiter = ratelimiter.NewLeakyBucket(maxLinesPerSeconds, time.Second)
 	}
@@ -87,6 +87,7 @@ func RunFileTailer(
 	w := &watcher{
 		pos:         pos,
 		globs:       globs,
+		excludes:    excludes,
 		tailConfig:  tailConfig,
 		idleTimeout: fileIdleTimeout,
 		logger:      log.WithField("component", "watcher"),
@@ -114,7 +115,7 @@ func (w *watcher) run() {
 			if !ok {
 				continue
 			}
-			w.logger.Debug(spew.Sprintf("recv event %#v", event))
+			w.logger.WithField("event", event).Debug("recv event")
 			w.handle(event)
 		case now := <-ticker.C:
 			w.cleanIdleFiles(now)
@@ -129,38 +130,42 @@ func (w *watcher) run() {
 	}
 }
 
+func (w *watcher) shouldWatch(path string) bool {
+	return matchGlobs(path, w.globs) && !matchGlobs(path, w.excludes)
+}
+
 // list pollingDirs，获取所有需要监听的文件
 func (w *watcher) init(dirs map[string]struct{}) {
 	for dir := range dirs {
 		fis, err := ioutil.ReadDir(dir)
 		if err != nil {
-			w.errors <- NewErrorf(NotSpecified, err, "read dir %s failed", dir)
+			w.errors <- NewStructuredError(err, "read dir", map[string]interface{}{"path": dir})
 			continue
 		}
 		if err := w.watcher.Add(dir); err != nil {
-			w.errors <- NewErrorf(NotSpecified, err, "watch dir %s failed", dir)
+			w.errors <- NewStructuredError(err, "watch new dir", map[string]interface{}{"path": dir})
+			continue
 		}
 		for _, fi := range fis {
 			path := filepath.Join(dir, fi.Name())
-			if matchGlobs(path, w.globs) {
+			if w.shouldWatch(path) {
 				w.watch(path)
 			}
 		}
 	}
 }
 
-// BUG: 重命名文件会令grok从头重读该文件，多数系统不支持MovedFromTo事件
 func (w *watcher) handle(event fsnotify.Event) {
 	path := event.Name
 	ops := strings.Split(event.Op.String(), "|")
 	for _, op := range ops {
 		switch op {
 		case "CREATE":
-			if matchGlobs(path, w.globs) {
+			if w.shouldWatch(path) {
 				w.watch(path)
 			}
 		case "CHMOD":
-			if matchGlobs(path, w.globs) {
+			if w.shouldWatch(path) {
 				f, err := os.OpenFile(path, os.O_RDONLY, 0666)
 				if err != nil {
 					if os.IsPermission(err) {
@@ -182,10 +187,10 @@ func (w *watcher) watch(path string) {
 	if _, existing := w.tailers[path]; existing {
 		return
 	}
-	w.logger.Info("watch new file " + path)
+	w.logger.WithField("path", path).Info("watch new file")
 	t, err := w.newTailer(path)
 	if err != nil {
-		w.errors <- NewErrorf(NotSpecified, err, "watch file %s failed", path)
+		w.errors <- NewStructuredError(err, "watch new file", map[string]interface{}{"path": path})
 		return
 	}
 	w.tailers[path] = t
@@ -197,7 +202,12 @@ func (w *watcher) unwatch(path string, delPos bool) {
 	if !ok {
 		return
 	}
-	w.logger.Info("unwatch file " + path)
+
+	w.logger.WithFields(map[string]interface{}{
+		"path": path,
+		"delPos": delPos,
+	}).Info("unwatch file")
+
 	t.stop(delPos)
 	delete(w.tailers, path)
 }
@@ -207,7 +217,7 @@ func (w *watcher) cleanIdleFiles(now time.Time) {
 	for k, t := range w.tailers {
 		readAt := t.readAt.Load().(time.Time)
 		if now.Sub(readAt) >= w.idleTimeout {
-			w.logger.Info("unwatch timeout file " + t.path)
+			w.logger.WithField("path", t.path).Info("file timeout")
 			t.stop(false)
 			continue
 		}

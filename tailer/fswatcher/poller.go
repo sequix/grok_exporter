@@ -13,27 +13,26 @@ import (
 	"github.com/sequix/grok_exporter/tailer/position"
 )
 
-// TODO file idle timeout
-
 type poller struct {
-	pos               position.Interface
-	failOnMissingFile bool
-	globs             []glob.Glob
-	logger            logrus.FieldLogger
-	pollInterval      time.Duration
-	pollingDirs       map[string]struct{}
-	pollingFiles      map[string]*file
-	lines             chan *Line
-	errors            chan Error
-	done              chan struct{}
-	terminated        chan struct{}
+	pos          position.Interface
+	globs        []glob.Glob
+	excludes     []glob.Glob
+	logger       logrus.FieldLogger
+	pollInterval time.Duration
+	pollingDirs  map[string]struct{}
+	pollingFiles map[string]*file
+	lines        chan *Line
+	errors       chan Error
+	done         chan struct{}
+	terminated   chan struct{}
 }
 
 func RunPollingFileTailer(
 	globs []glob.Glob,
+	excludes []glob.Glob,
 	pos position.Interface,
-	failOnMissingFile bool,
 	pollInterval time.Duration,
+	// TODO file idle timeout
 	fileIdleTimeout time.Duration,
 	log logrus.FieldLogger,
 ) (Interface, error) {
@@ -43,17 +42,17 @@ func RunPollingFileTailer(
 	}
 
 	p := &poller{
-		pos:               pos,
-		failOnMissingFile: failOnMissingFile,
-		globs:             globs,
-		logger:            log.WithField("component", "poller"),
-		pollInterval:      pollInterval,
-		pollingDirs:       dirs,
-		pollingFiles:      make(map[string]*file),
-		lines:             make(chan *Line),
-		errors:            make(chan Error),
-		done:              make(chan struct{}),
-		terminated:        make(chan struct{}),
+		pos:          pos,
+		globs:        globs,
+		excludes:     excludes,
+		logger:       log.WithField("component", "poller"),
+		pollInterval: pollInterval,
+		pollingDirs:  dirs,
+		pollingFiles: make(map[string]*file),
+		lines:        make(chan *Line),
+		errors:       make(chan Error),
+		done:         make(chan struct{}),
+		terminated:   make(chan struct{}),
 	}
 	go p.run()
 	return p, nil
@@ -69,12 +68,12 @@ func (p *poller) Errors() chan Error {
 
 func (p *poller) Close() {
 	close(p.done)
-	<- p.terminated
+	<-p.terminated
 }
 
 func (p *poller) run() {
 	defer func() { close(p.terminated) }()
-	tick := time.NewTimer(p.pollInterval)	// 直接在for中写 time.After 会造成内存泄露
+	tick := time.NewTimer(p.pollInterval) // 直接在for中写 time.After 会造成内存泄露
 	defer tick.Stop()
 	for {
 		tick.Reset(p.pollInterval)
@@ -103,7 +102,7 @@ func (p *poller) relist() {
 		}
 		for _, fi := range fis {
 			path := filepath.Join(dir, fi.Name())
-			if !matchGlobs(path, p.globs) {
+			if !(matchGlobs(path, p.globs) && !matchGlobs(path, p.excludes)) {
 				continue
 			}
 			f, ok := p.pollingFiles[path]
@@ -111,7 +110,7 @@ func (p *poller) relist() {
 				f, err = p.newFile(path)
 				if err != nil {
 					errType := NotSpecified
-					if p.failOnMissingFile && os.IsNotExist(err) {
+					if os.IsNotExist(err) {
 						errType = FileNotFound
 					}
 					p.errors <- NewErrorf(ErrorType(errType), err, "open file %s", path)

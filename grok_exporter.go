@@ -76,7 +76,10 @@ func main() {
 	}
 	nLinesTotal, nMatchesByMetric, procTimeMicrosecondsByMetric, nErrorsByMetric := initSelfMonitoring(metrics)
 
-	tail, err := startTailer(cfg)
+	logger, err := initLogger(cfg)
+	exitOnError(err)
+
+	tail, err := startTailer(cfg, logger)
 	exitOnError(err)
 
 	// gather up the handlers with which to start the webserver
@@ -100,11 +103,12 @@ func main() {
 		case err := <-serverErrors:
 			exitOnError(fmt.Errorf("server error: %v", err.Error()))
 		case err := <-tail.Errors():
-			if os.IsNotExist(err.Cause()) {
-				exitOnError(fmt.Errorf("error reading log lines: %v: use 'fail_on_missing_logfile: false' in the input configuration if you want grok_exporter to start even though the logfile is missing", err))
-			} else {
-				exitOnError(fmt.Errorf("error reading log lines: %v", err.Error()))
+			if err.Type() == fswatcher.Structured {
+				errS := err.(*fswatcher.StructuredError)
+				logger.WithField("err", errS.Cause()).WithFields(errS.KVs).Error(errS.Error())
+				continue
 			}
+			logger.WithField("err", err).Error(err.Error())
 		case line := <-tail.Lines():
 			matched := false
 			for _, metric := range metrics {
@@ -144,6 +148,21 @@ func main() {
 			// TODO: create metric to monitor number of metrics cleaned up via retention
 		}
 	}
+}
+
+func initLogger(cfg *v2.Config) (logrus.FieldLogger, error) {
+	fmter := new(logrus.JSONFormatter)
+	logrus.SetFormatter(fmter)
+
+	logger := logrus.New()
+	logger.Formatter = fmter
+
+	logLevel, err := logrus.ParseLevel(cfg.Global.LogLevel)
+	if err != nil {
+		return nil, err
+	}
+	logger.Level = logLevel
+	return logger, nil
 }
 
 func startMsg(cfg *v2.Config, httpHandlers []exporter.HttpServerPathHandler) string {
@@ -299,52 +318,49 @@ func startServer(cfg v2.ServerConfig, httpHandlers []exporter.HttpServerPathHand
 	return serverErrors
 }
 
-func startTailer(cfg *v2.Config) (fswatcher.Interface, error) {
-	fmter := new(logrus.TextFormatter)
-	fmter.TimestampFormat = "2006/01/02 15:04:05"
-	logrus.SetFormatter(fmter)
-	fmter.FullTimestamp = true
-
-	logger := logrus.New()
-	logger.Formatter = fmter
-
-	logLevel, err := logrus.ParseLevel(cfg.Global.LogLevel)
-	if err != nil {
-		return nil, err
-	}
-	logger.Level = logLevel
+func startTailer(cfg *v2.Config, logger logrus.FieldLogger) (fswatcher.Interface, error) {
 	var tail fswatcher.Interface
-	g, err := glob.FromPath(cfg.Input.Path)
+
+	gs, err := globsFromPathes(cfg.Input.Path)
 	if err != nil {
 		return nil, err
 	}
+
+	excludes, err := globsFromPathes(cfg.Input.Excludes)
+	if err != nil {
+		return nil, err
+	}
+
 	switch {
 	case cfg.Input.Type == "file":
 		pos, err := position.New(logger, cfg.Input.PositionFile, cfg.Input.SyncInterval)
 		if err != nil {
 			return nil, err
 		}
-		if cfg.Input.PollInterval == 0 {
-			logger.Infof("Start watching for %q", cfg.Input.Path)
+		if cfg.Input.CollectMode == "mixed" {
+			logger.Infof("Start watching %v, excludes %v", cfg.Input.Path, cfg.Input.Excludes)
 			tail, err = fswatcher.RunFileTailer(
-				[]glob.Glob{g},
+				gs,
+				excludes,
 				pos,
 				cfg.Input.MaxLineSize,
 				cfg.Input.MaxLinesRatePerFile,
-				cfg.Input.FailOnMissingLogfile,
-				cfg.Input.MaxFileIdleTimeout,
+				cfg.Input.PollInterval,
+				cfg.Input.IdleTimeout,
+				logger,
+			)
+		} else if cfg.Input.CollectMode == "poll" {
+			logger.Infof("Start polling for %q", cfg.Input.Path)
+			tail, err = fswatcher.RunPollingFileTailer(
+				gs,
+				excludes,
+				pos,
+				cfg.Input.PollInterval,
+				cfg.Input.IdleTimeout,
 				logger,
 			)
 		} else {
-			logger.Infof("Start polling for %q", cfg.Input.Path)
-			tail, err = fswatcher.RunPollingFileTailer(
-				[]glob.Glob{g},
-				pos,
-				cfg.Input.FailOnMissingLogfile,
-				cfg.Input.PollInterval,
-				cfg.Input.MaxFileIdleTimeout,
-				logger,
-			)
+			return nil, fmt.Errorf("unknown collect mode %q", cfg.Input.CollectMode)
 		}
 		if err != nil {
 			return nil, err
@@ -358,4 +374,16 @@ func startTailer(cfg *v2.Config) (fswatcher.Interface, error) {
 	}
 	bufferLoadMetric := exporter.NewBufferLoadMetric(logger, cfg.Input.MaxLinesInBuffer > 0)
 	return tailer.BufferedTailerWithMetrics(tail, bufferLoadMetric, logger, cfg.Input.MaxLinesInBuffer), nil
+}
+
+func globsFromPathes(pathes []string) ([]glob.Glob, error) {
+	gs := make([]glob.Glob, 0, len(pathes))
+	for _, path := range pathes {
+		g, err := glob.FromPath(path)
+		if err != nil {
+			return nil, err
+		}
+		gs = append(gs, g)
+	}
+	return gs, nil
 }

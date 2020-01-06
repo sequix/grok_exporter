@@ -22,6 +22,7 @@ const (
 	NotSpecified = iota
 	DirectoryNotFound
 	FileNotFound
+	Structured
 )
 
 type Error interface {
@@ -66,4 +67,30 @@ func (e tailerError) Error() string {
 	} else {
 		return "unknown error"
 	}
+}
+
+type StructuredError struct {
+	msg   string
+	cause error
+	KVs   map[string]interface{}
+}
+
+func NewStructuredError(cause error, msg string, KVs map[string]interface{}) *StructuredError {
+	return &StructuredError{
+		msg:   msg,
+		cause: cause,
+		KVs:   KVs,
+	}
+}
+
+func (se *StructuredError) Cause() error {
+	return se.cause
+}
+
+func (se *StructuredError) Type() ErrorType {
+	return Structured
+}
+
+func (se *StructuredError) Error() string {
+	return se.msg
 }
