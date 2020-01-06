@@ -18,8 +18,10 @@ import (
 	"fmt"
 	configuration "github.com/sequix/grok_exporter/config/v2"
 	"github.com/sequix/grok_exporter/oniguruma"
+	"github.com/sequix/grok_exporter/tailer/glob"
 	"github.com/sequix/grok_exporter/template"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/sequix/grok_exporter/util"
 	"strconv"
 	"time"
 )
@@ -39,6 +41,25 @@ type Metric interface {
 	ProcessDeleteMatch(line string) (*Match, error)
 	// Remove old metrics
 	ProcessRetention() error
+}
+
+// Allow metrics to use different sets of files.
+type PathMetric struct {
+	Metric
+	globs []glob.Glob
+	excludes []glob.Glob
+}
+
+func NewPathMatchMetric(m Metric, globs, excludes []glob.Glob) *PathMetric {
+	return &PathMetric{
+		Metric: m,
+		globs: globs,
+		excludes: excludes,
+	}
+}
+
+func (pmm *PathMetric) MatchPath(p string) bool {
+	return util.MatchGlobs(p, pmm.globs) && !util.MatchGlobs(p, pmm.excludes)
 }
 
 // Common values for incMetric and observeMetric

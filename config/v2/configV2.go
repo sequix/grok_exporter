@@ -30,7 +30,6 @@ const (
 	defaultPositionSyncIntervcal  = 500 * time.Millisecond
 	defaultPollInterval           = 500 * time.Millisecond
 	defaultRetentionCheckInterval = 60 * time.Second
-	defaultMaxFileIdleTimeout     = 60 * time.Second
 	inputTypeStdin                = "stdin"
 	inputTypeFile                 = "file"
 	inputTypeWebhook              = "webhook"
@@ -89,6 +88,8 @@ type GrokConfig struct {
 type MetricConfig struct {
 	Type                 string              `yaml:",omitempty"`
 	Name                 string              `yaml:",omitempty"`
+	Path                 []string            `yaml:",omitempty"`
+	Excludes             []string            `yaml:",omitempty"`
 	Help                 string              `yaml:",omitempty"`
 	Match                string              `yaml:",omitempty"`
 	Retention            time.Duration       `yaml:",omitempty"` // implicitly parsed with time.ParseDuration()
@@ -126,6 +127,15 @@ func (cfg *Config) LoadEnvironments() {
 		excludes[i] = os.ExpandEnv(excludes[i])
 	}
 
+	for i := range cfg.Metrics {
+		m := &cfg.Metrics[i]
+		for j, p := range m.Path {
+			m.Path[j] = os.ExpandEnv(p)
+		}
+		for j, p := range m.Excludes {
+			m.Excludes[j] = os.ExpandEnv(p)
+		}
+	}
 	cfg.Input.PositionFile = os.ExpandEnv(cfg.Input.PositionFile)
 }
 
@@ -168,9 +178,6 @@ func (c *InputConfig) addDefaults() {
 		}
 		if c.SyncInterval == 0 {
 			c.SyncInterval = defaultPositionSyncIntervcal
-		}
-		if c.IdleTimeout == 0 {
-			c.IdleTimeout = defaultMaxFileIdleTimeout
 		}
 	case inputTypeWebhook:
 		if len(c.WebhookPath) == 0 {

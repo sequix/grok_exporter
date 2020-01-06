@@ -113,10 +113,15 @@ func main() {
 			matched := false
 			for _, metric := range metrics {
 				start := time.Now()
+				if !metric.MatchPath(line.File) {
+					continue
+				}
 				match, err := metric.ProcessMatch(line.Line)
 				if err != nil {
-					fmt.Fprintf(os.Stderr, "WARNING: skipping log line: %v\n", err.Error())
-					fmt.Fprintf(os.Stderr, "%v\n", line.Line)
+					logger.WithFields(map[string]interface{}{
+						"line": line.Line,
+						"err":  err,
+					}).Warn("process matching, skip log line")
 					nErrorsByMetric.WithLabelValues(metric.Name()).Inc()
 				}
 				if match != nil {
@@ -126,8 +131,10 @@ func main() {
 				}
 				_, err = metric.ProcessDeleteMatch(line.Line)
 				if err != nil {
-					fmt.Fprintf(os.Stderr, "WARNING: skipping log line: %v\n", err.Error())
-					fmt.Fprintf(os.Stderr, "%v\n", line.Line)
+					logger.WithFields(map[string]interface{}{
+						"line": line.Line,
+						"err":  err,
+					}).Warn("process delete match, skip log line")
 					nErrorsByMetric.WithLabelValues(metric.Name()).Inc()
 				}
 				// TODO: create metric to monitor number of matching delete_patterns
@@ -221,8 +228,8 @@ func initPatterns(cfg *v2.Config) (*exporter.Patterns, error) {
 	return patterns, nil
 }
 
-func createMetrics(cfg *v2.Config, patterns *exporter.Patterns) ([]exporter.Metric, error) {
-	result := make([]exporter.Metric, 0, len(cfg.Metrics))
+func createMetrics(cfg *v2.Config, patterns *exporter.Patterns) ([]*exporter.PathMetric, error) {
+	result := make([]*exporter.PathMetric, 0, len(cfg.Metrics))
 	for _, m := range cfg.Metrics {
 		var (
 			regex, deleteRegex *oniguruma.Regex
@@ -242,15 +249,27 @@ func createMetrics(cfg *v2.Config, patterns *exporter.Patterns) ([]exporter.Metr
 		if err != nil {
 			return nil, fmt.Errorf("failed to initialize metric %v: %v", m.Name, err.Error())
 		}
+		path, err := globsFromPathes(m.Path)
+		if err != nil {
+			return nil, fmt.Errorf("failed to initialize metric %v: %v", m.Name, err.Error())
+		}
+		excludes, err := globsFromPathes(m.Excludes)
+		if err != nil {
+			return nil, fmt.Errorf("failed to initialize metric %v: %v", m.Name, err.Error())
+		}
 		switch m.Type {
 		case "counter":
-			result = append(result, exporter.NewCounterMetric(&m, regex, deleteRegex))
+			mt := exporter.NewCounterMetric(&m, regex, deleteRegex)
+			result = append(result, exporter.NewPathMatchMetric(mt, path, excludes))
 		case "gauge":
-			result = append(result, exporter.NewGaugeMetric(&m, regex, deleteRegex))
+			mt := exporter.NewGaugeMetric(&m, regex, deleteRegex)
+			result = append(result, exporter.NewPathMatchMetric(mt, path, excludes))
 		case "histogram":
-			result = append(result, exporter.NewHistogramMetric(&m, regex, deleteRegex))
+			mt := exporter.NewHistogramMetric(&m, regex, deleteRegex)
+			result = append(result, exporter.NewPathMatchMetric(mt, path, excludes))
 		case "summary":
-			result = append(result, exporter.NewSummaryMetric(&m, regex, deleteRegex))
+			mt := exporter.NewSummaryMetric(&m, regex, deleteRegex)
+			result = append(result, exporter.NewPathMatchMetric(mt, path, excludes))
 		default:
 			return nil, fmt.Errorf("Failed to initialize metrics: Metric type %v is not supported.", m.Type)
 		}
@@ -258,7 +277,7 @@ func createMetrics(cfg *v2.Config, patterns *exporter.Patterns) ([]exporter.Metr
 	return result, nil
 }
 
-func initSelfMonitoring(metrics []exporter.Metric) (*prometheus.CounterVec, *prometheus.CounterVec, *prometheus.CounterVec, *prometheus.CounterVec) {
+func initSelfMonitoring(metrics []*exporter.PathMetric) (*prometheus.CounterVec, *prometheus.CounterVec, *prometheus.CounterVec, *prometheus.CounterVec) {
 	buildInfo := prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "grok_exporter_build_info",
 		Help: "A metric with a constant '1' value labeled by version, builddate, branch, revision, goversion, and platform on which grok_exporter was built.",

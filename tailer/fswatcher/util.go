@@ -28,12 +28,3 @@ func expandGlobs(globs []glob.Glob) (map[string]struct{}, Error) {
 	}
 	return result, nil
 }
-
-func matchGlobs(path string, globs []glob.Glob) bool {
-	for i := range globs {
-		if globs[i].Match(path) {
-			return true
-		}
-	}
-	return false
-}

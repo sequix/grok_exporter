@@ -30,7 +30,7 @@ input:
     # 偏移文件同步周期
     position_sync_interval: 5s
 
-    # 文件多长时间没有写入后关闭
+    # 文件多长时间没有写入后关闭，默认不关闭
     idle_timeout: 60s
 
     # 行长限制，超过限制，分为多行，默认不限制
@@ -53,6 +53,24 @@ metrics:
       match: '%{EXIM_DATE} %{EXIM_REMOTE_HOST} F=<%{EMAILADDRESS}> rejected RCPT <%{EMAILADDRESS}>: %{EXIM_MESSAGE:message}'
       labels:
           error_message: '{{.message}}'
+
+    - type: counter
+      name: log_lines_total
+      help: Total line number of all .log files but 2.txt.
+      match: '.*'
+      path:
+      - test/*.log
+      excludes:
+      - test/2.log
+
+    - type: counter
+      name: txt_lines_total
+      help: Total line number of all .txt files but 2.txt.
+      match: '.*'
+      path:
+      - test/*.txt
+      excludes:
+      - test/2.txt
 
 server:
     host: 0.0.0.0

@@ -99,7 +99,11 @@ func RunFileTailer(
 		terminated:  make(chan struct{}),
 	}
 	w.init(dirs)
-	go w.run()
+	if w.idleTimeout == 0 {
+		go w.runWithoutCleaner()
+	} else {
+		go w.run()
+	}
 	return w, nil
 }
 
@@ -130,8 +134,30 @@ func (w *watcher) run() {
 	}
 }
 
+func (w *watcher) runWithoutCleaner() {
+	defer close(w.terminated)
+
+	for {
+		select {
+		case event, ok := <-w.watcher.Events:
+			if !ok {
+				continue
+			}
+			w.logger.WithField("event", event).Debug("recv event")
+			w.handle(event)
+		case <-w.done:
+			for _, t := range w.tailers {
+				t.stop(false)
+			}
+			close(w.lines)
+			close(w.errors)
+			return
+		}
+	}
+}
+
 func (w *watcher) shouldWatch(path string) bool {
-	return matchGlobs(path, w.globs) && !matchGlobs(path, w.excludes)
+	return util.MatchGlobs(path, w.globs) && !util.MatchGlobs(path, w.excludes)
 }
 
 // list pollingDirs，获取所有需要监听的文件

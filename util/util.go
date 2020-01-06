@@ -3,6 +3,7 @@ package util
 import (
 	"errors"
 	"fmt"
+	"github.com/sequix/grok_exporter/tailer/glob"
 	"os"
 	"syscall"
 )
@@ -67,4 +68,13 @@ func FileTypeOf(path string) (FileType, error) {
 		return Temporary, nil
 	}
 	return Regular, nil
+}
+
+func MatchGlobs(path string, globs []glob.Glob) bool {
+	for i := range globs {
+		if globs[i].Match(path) {
+			return true
+		}
+	}
+	return false
 }

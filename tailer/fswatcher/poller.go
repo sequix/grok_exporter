@@ -2,6 +2,7 @@ package fswatcher
 
 import (
 	"fmt"
+	"github.com/sequix/grok_exporter/util"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -102,7 +103,7 @@ func (p *poller) relist() {
 		}
 		for _, fi := range fis {
 			path := filepath.Join(dir, fi.Name())
-			if !(matchGlobs(path, p.globs) && !matchGlobs(path, p.excludes)) {
+			if !(util.MatchGlobs(path, p.globs) && !util.MatchGlobs(path, p.excludes)) {
 				continue
 			}
 			f, ok := p.pollingFiles[path]
