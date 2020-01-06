@@ -13,61 +13,16 @@ git submodule update --init --recursive
 go run grok_exporter.go -config config.yml
 ```
 
-```yaml
-global:
-    config_version: 2
-    log_level: debug
-input:
-    type: file
-
-    # 配置文件路径，支持环境变量
-    path: test/*.log
-
-    # 偏移文件,支持环境变量
-    position_file: ./position.json
-
-    # 偏移文件同步周期
-    position_sync_interval: 5s
-
-    # 文件多长时间没有写入关闭
-    max_file_idle_timeout: 60s
-
-    # 文件不存在时不退出
-    fail_on_missing_logfile: false
-
-    # 行长限制，超过限制，分为多行，默认不限制
-    #max_line_size: 128
-
-    # 每个文件 每秒 最多读多少行
-    # 若第一秒读超限制，则第二秒不读取，第三秒从文件末尾开始读取(会丢第2秒到第3秒的数据)
-    # 该行为由hpcloud/tail提供
-    #max_lines_rate_per_file: 128
-
-    # 指定poll_interval_seconds后会采用轮询方式读日志
-    #poll_interval_seconds: 3
-grok:
-    patterns_dir: ./logstash-patterns-core/patterns
-    additional_patterns:
-    - 'EXIM_MESSAGE [a-zA-Z ]*'
-metrics:
-    - type: counter
-      name: exim_rejected_rcpt_total
-      help: Total number of rejected recipients, partitioned by error message.
-      match: '%{EXIM_DATE} %{EXIM_REMOTE_HOST} F=<%{EMAILADDRESS}> rejected RCPT <%{EMAILADDRESS}>: %{EXIM_MESSAGE:message}'
-      labels:
-          error_message: '{{.message}}'
-server:
-    host: 0.0.0.0
-    port: 8989
 ```
-
-```
-# 偏移文件以json保存日志文件的文件系统号-inode编号和偏移量
+# 偏移文格式如下：
 {
+    "<deviceNumberHex>-<inodeNumberHex>": <offsetDec>,
     "10302-642271": 941183,
     "10302-64227b": 627455
 }
 ```
+
+配置文件见config.yml。
 
 ## 实现
 
