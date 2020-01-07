@@ -72,8 +72,8 @@ func RunFileTailer(
 			Offset: 0,
 			Whence: io.SeekStart,
 		},
-		ReOpen: true,
-		Follow: true,
+		ReOpen:       true,
+		Follow:       true,
 		PollInterval: pollInterval,
 		MaxLineSize:  maxLineSize,
 		MustExist:    false,
@@ -230,7 +230,7 @@ func (w *watcher) unwatch(path string, delPos bool) {
 	}
 
 	w.logger.WithFields(map[string]interface{}{
-		"path": path,
+		"path":   path,
 		"delPos": delPos,
 	}).Info("unwatch file")
 

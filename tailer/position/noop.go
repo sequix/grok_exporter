@@ -6,7 +6,7 @@ import (
 
 type memPos struct {
 	mutex *sync.RWMutex
-	pos map[string]int64
+	pos   map[string]int64
 }
 
 func (m *memPos) DelOffset(devIno string) {
@@ -18,7 +18,7 @@ func (m *memPos) DelOffset(devIno string) {
 func NewMemPos() Interface {
 	return &memPos{
 		mutex: &sync.RWMutex{},
-		pos: make(map[string]int64),
+		pos:   make(map[string]int64),
 	}
 }
 

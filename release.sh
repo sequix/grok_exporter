@@ -2,7 +2,7 @@
 
 set -e
 
-if [[ $(go version) != *"go1.11"* && $(go version) != *"go1.12"* ]] ; then
+if [[ $(go version) != *"go1.11"* && $(go version) != *"go1.12"* && $(go version) != *"go1.13"* ]] ; then
     echo "grok_exporter uses Go 1.11 Modules. Please use Go version >= 1.11." >&2
     echo "Version found is $(go version)" >&2
     exit 1
@@ -15,15 +15,15 @@ export GO111MODULE=on
 # The Darwin release is built natively, Linux and Windows are built in a Docker container
 #========================================================================================
 
-cd $GOPATH/src/github.com/fstab/grok_exporter
+#cd $(pwd)
 
-export VERSION=0.2.9-SNAPSHOT
+export VERSION=1.0.0
 
 export VERSION_FLAGS="\
-        -X github.com/fstab/grok_exporter/exporter.Version=$VERSION
-        -X github.com/fstab/grok_exporter/exporter.BuildDate=$(date +%Y-%m-%d)
-        -X github.com/fstab/grok_exporter/exporter.Branch=$(git rev-parse --abbrev-ref HEAD)
-        -X github.com/fstab/grok_exporter/exporter.Revision=$(git rev-parse --short HEAD)
+        -X github.com/sequix/grok_exporter/exporter.Version=$VERSION
+        -X github.com/sequix/grok_exporter/exporter.BuildDate=$(date +%Y-%m-%d)
+        -X github.com/sequix/grok_exporter/exporter.Branch=$(git rev-parse --abbrev-ref HEAD)
+        -X github.com/sequix/grok_exporter/exporter.Revision=$(git rev-parse --short HEAD)
 "
 
 #--------------------------------------------------------------
@@ -81,16 +81,17 @@ function create_zip_file {
 
 function run_docker_linux_amd64 {
     docker run \
-        -v $GOPATH/src/github.com/fstab/grok_exporter:/go/src/github.com/fstab/grok_exporter \
+        -v $(pwd):/go/src/github.com/sequix/grok_exporter \
         --net none \
         --user $(id -u):$(id -g) \
+        -v $(pwd)/compile-linux.sh:/compile-linux.sh \
         --rm -ti fstab/grok_exporter-compiler-amd64 \
-        ./compile-linux.sh -ldflags "$VERSION_FLAGS" -o "dist/grok_exporter-$VERSION.linux-amd64/grok_exporter"
+        bash ./compile-linux.sh -ldflags "$VERSION_FLAGS" -o "dist/grok_exporter-$VERSION.linux-amd64/grok_exporter"
 }
 
 function run_docker_windows_amd64 {
     docker run \
-        -v $GOPATH/src/github.com/fstab/grok_exporter:/go/src/github.com/fstab/grok_exporter \
+        -v $(pwd):/go/src/github.com/sequix/grok_exporter \
         --net none \
         --user $(id -u):$(id -g) \
         --rm -ti fstab/grok_exporter-compiler-amd64 \
@@ -99,7 +100,7 @@ function run_docker_windows_amd64 {
 
 function run_docker_linux_arm64v8 {
     docker run \
-        -v $GOPATH/src/github.com/fstab/grok_exporter:/go/src/github.com/fstab/grok_exporter \
+        -v $(pwd):/go/src/github.com/sequix/grok_exporter \
         --net none \
         --user $(id -u):$(id -g) \
         --rm -ti fstab/grok_exporter-compiler-arm64v8 \
@@ -108,7 +109,7 @@ function run_docker_linux_arm64v8 {
 
 function run_docker_linux_arm32v6 {
     docker run \
-        -v $GOPATH/src/github.com/fstab/grok_exporter:/go/src/github.com/fstab/grok_exporter \
+        -v $(pwd):/go/src/github.com/sequix/grok_exporter \
         --net none \
         --user $(id -u):$(id -g) \
         --rm -ti fstab/grok_exporter-compiler-arm32v6 \
@@ -166,42 +167,42 @@ function release_darwin_amd64 {
 case $1 in
     linux-amd64)
         rm -rf dist/grok_exporter-*.linux-amd64*
-        run_tests
+        #run_tests
         create_vendor
         release_linux_amd64
         remove_vendor
         ;;
     linux-arm64v8)
         rm -rf dist/grok_exporter-*.linux-arm64v8*
-        run_tests
+        #run_tests
         create_vendor
         release_linux_arm64v8
         remove_vendor
         ;;
     linux-arm32v6)
         rm -rf dist/grok_exporter-*.linux-arm32v6*
-        run_tests
+        #run_tests
         create_vendor
         release_linux_arm32v6
         remove_vendor
         ;;
     darwin-amd64)
         rm -rf dist/grok_exporter-*.darwin-amd64*
-        run_tests
+        #run_tests
         create_vendor
         release_darwin_amd64
         remove_vendor
         ;;
     windows-amd64)
         rm -rf dist/grok_exporter-*.windows-amd64*
-        run_tests
+        #run_tests
         create_vendor
         release_windows_amd64
         remove_vendor
         ;;
     all-amd64)
         rm -rf dist/grok_exporter-*.*-amd64*
-        run_tests
+        #run_tests
         create_vendor
         release_linux_amd64
         release_darwin_amd64
@@ -210,7 +211,7 @@ case $1 in
         ;;
     all)
         rm -rf dist/grok_exporter-*
-        run_tests
+        #run_tests
         create_vendor
         release_linux_amd64
         release_darwin_amd64
@@ -231,3 +232,4 @@ case $1 in
         echo '    - all' >&2
         exit -1
 esac
+

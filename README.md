@@ -24,6 +24,20 @@ go run grok_exporter.go -config config.yml
 
 配置文件见config.yml。
 
+## 打包镜像
+
+```bash
+# 1.修改release.sh和Dockerfile中的版本号
+
+# 2.编译
+$ ./release.sh linux-amd64
+
+# 3.在github.com上发布版本
+
+# 4.打包
+$ docker build .
+```
+
 ## 实现
 
 ![implementation diagram](images/grok.jpg)

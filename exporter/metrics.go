@@ -16,11 +16,11 @@ package exporter
 
 import (
 	"fmt"
+	"github.com/prometheus/client_golang/prometheus"
 	configuration "github.com/sequix/grok_exporter/config/v2"
 	"github.com/sequix/grok_exporter/oniguruma"
 	"github.com/sequix/grok_exporter/tailer/glob"
 	"github.com/sequix/grok_exporter/template"
-	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sequix/grok_exporter/util"
 	"strconv"
 	"time"
@@ -46,14 +46,14 @@ type Metric interface {
 // Allow metrics to use different sets of files.
 type PathMetric struct {
 	Metric
-	globs []glob.Glob
+	globs    []glob.Glob
 	excludes []glob.Glob
 }
 
 func NewPathMatchMetric(m Metric, globs, excludes []glob.Glob) *PathMetric {
 	return &PathMetric{
-		Metric: m,
-		globs: globs,
+		Metric:   m,
+		globs:    globs,
 		excludes: excludes,
 	}
 }

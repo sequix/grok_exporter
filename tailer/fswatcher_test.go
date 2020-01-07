@@ -562,19 +562,14 @@ func mkdir(t *testing.T, ctx *context, dirname string) {
 
 func startFileTailer(t *testing.T, ctx *context, params []string) {
 	var (
-		parsedGlobs       []glob.Glob
-		tailer            fswatcher.Interface
-		pos               = position.NewMemPos()
-		failOnMissingFile = true
-		globs             []string
-		err               error
+		parsedGlobs []glob.Glob
+		tailer      fswatcher.Interface
+		pos         = position.NewMemPos()
+		globs       []string
+		err         error
 	)
 	for _, p := range params {
 		switch p {
-		case "fail_on_missing_logfile=true":
-			failOnMissingFile = true
-		case "fail_on_missing_logfile=false":
-			failOnMissingFile = false
 		default:
 			globs = append(globs, p)
 		}
@@ -587,9 +582,23 @@ func startFileTailer(t *testing.T, ctx *context, params []string) {
 		parsedGlobs = append(parsedGlobs, parsedGlob)
 	}
 	if ctx.tailerCfg == fseventTailer {
-		tailer, err = fswatcher.RunFileTailer(parsedGlobs, pos, failOnMissingFile, ctx.log)
+		tailer, err = fswatcher.RunFileTailer(
+			parsedGlobs,
+			[]glob.Glob{},
+			position.NewMemPos(),
+			0,
+			0,
+			250*time.Millisecond,
+			0,
+			ctx.log)
 	} else {
-		tailer, err = fswatcher.RunPollingFileTailer(parsedGlobs, pos, failOnMissingFile, 10*time.Millisecond, ctx.log)
+		tailer, err = fswatcher.RunPollingFileTailer(
+			parsedGlobs,
+			[]glob.Glob{},
+			pos,
+			10*time.Millisecond,
+			0,
+			ctx.log)
 	}
 	if err != nil {
 		fatalf(t, ctx, "%v", err)
@@ -904,7 +913,15 @@ func runTestShutdown(t *testing.T, mode string) {
 	if err != nil {
 		fatalf(t, ctx, "%q: failed to parse glob: %q", parsedGlob, err)
 	}
-	tailer, err := fswatcher.RunFileTailer([]glob.Glob{parsedGlob}, position.NewMemPos(), true, ctx.log)
+	tailer, err := fswatcher.RunFileTailer(
+		[]glob.Glob{parsedGlob},
+		[]glob.Glob{},
+		position.NewMemPos(),
+		0,
+		0,
+		250*time.Millisecond,
+		0,
+		ctx.log)
 	if err != nil {
 		fatalf(t, ctx, "failed to start tailer: %v", err)
 	}
