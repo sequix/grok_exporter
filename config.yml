@@ -1,6 +1,42 @@
 global:
     config_version: 2
+
+    # 支持：panic、fatal、error、warn、info、debug、trace，默认info
     log_level: debug
+
+    # 支持：stdout、file、mixed，默认mixed
+    log_to: mixed
+
+log_rotate:
+  # Filename is the file to write logs to.  Backup log files will be retained
+  # in the same directory.  It uses <processname>-lumberjack.log in
+  # os.TempDir() if empty.
+  filename: "grok_exporter.log"
+  
+  # MaxSize is the maximum size in megabytes of the log file before it gets
+  # rotated. It defaults to 100 megabytes.
+  maxsize: 1
+
+  # MaxAge is the maximum number of days to retain old log files based on the
+  # timestamp encoded in their filename.  Note that a day is defined as 24
+  # hours and may not exactly correspond to calendar days due to daylight
+  # savings, leap seconds, etc. The default is not to remove old log files
+  # based on age.
+  #maxage: 30
+
+  # MaxBackups is the maximum number of old log files to retain.  The default
+  # is to retain all old log files (though MaxAge may still cause them to get
+  # deleted.)
+  #maxbackups: 100
+
+  # LocalTime determines if the time used for formatting the timestamps in
+  # backup files is the computer's local time.  The default is to use UTC
+  # time.
+  #localtime: true
+
+  # Compress determines if the rotated log files should be compressed
+  # using gzip. The default is not to perform compression.
+  #compress: false
 
 input:
     # 采集模式，支持下述两种：

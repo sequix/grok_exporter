@@ -17,6 +17,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 	"time"
@@ -158,11 +159,17 @@ func main() {
 }
 
 func initLogger(cfg *v2.Config) (logrus.FieldLogger, error) {
-	fmter := new(logrus.JSONFormatter)
-	logrus.SetFormatter(fmter)
-
 	logger := logrus.New()
-	logger.Formatter = fmter
+	logger.SetFormatter(&logrus.JSONFormatter{})
+
+	switch cfg.Global.LogTo {
+	case "file":
+		logger.SetOutput(&cfg.LogRotate)
+	case "stdout":
+		logger.SetOutput(os.Stdout)
+	case "mixed":
+		logger.SetOutput(io.MultiWriter(os.Stdout, &cfg.LogRotate))
+	}
 
 	logLevel, err := logrus.ParseLevel(cfg.Global.LogLevel)
 	if err != nil {

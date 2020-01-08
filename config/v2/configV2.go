@@ -18,6 +18,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/sequix/grok_exporter/template"
+	"gopkg.in/natefinch/lumberjack.v2"
 	"gopkg.in/yaml.v2"
 	"os"
 	"strings"
@@ -26,6 +27,7 @@ import (
 
 const (
 	defaultLogLevel               = "info"
+	defaultLogTo                  = "mixed"
 	defaultPositionsFile          = "/tmp/position.json"
 	defaultPositionSyncIntervcal  = 500 * time.Millisecond
 	defaultPollInterval           = 500 * time.Millisecond
@@ -49,16 +51,18 @@ func Unmarshal(config []byte) (*Config, error) {
 }
 
 type Config struct {
-	Global  GlobalConfig  `yaml:",omitempty"`
-	Input   InputConfig   `yaml:",omitempty"`
-	Grok    GrokConfig    `yaml:",omitempty"`
-	Metrics MetricsConfig `yaml:",omitempty"`
-	Server  ServerConfig  `yaml:",omitempty"`
+	Global    GlobalConfig      `yaml:",omitempty"`
+	Input     InputConfig       `yaml:",omitempty"`
+	Grok      GrokConfig        `yaml:",omitempty"`
+	Metrics   MetricsConfig     `yaml:",omitempty"`
+	Server    ServerConfig      `yaml:",omitempty"`
+	LogRotate lumberjack.Logger `yaml:"log_rotate,omitempty"`
 }
 
 type GlobalConfig struct {
 	ConfigVersion          int           `yaml:"config_version,omitempty"`
 	LogLevel               string        `yaml:"log_level,omitempty"`
+	LogTo                  string        `yaml:"log_to,omitempty"`
 	RetentionCheckInterval time.Duration `yaml:"retention_check_interval,omitempty"` // implicitly parsed with time.ParseDuration()
 }
 
@@ -159,6 +163,9 @@ func (c *GlobalConfig) addDefaults() {
 	}
 	if c.LogLevel == "" {
 		c.LogLevel = defaultLogLevel
+	}
+	if c.LogTo == "" {
+		c.LogLevel = defaultLogTo
 	}
 }
 
