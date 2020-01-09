@@ -17,7 +17,7 @@ package main
 import (
 	"flag"
 	"fmt"
-	"io"
+	"github.com/sequix/grok_exporter/log"
 	"os"
 	"strings"
 	"time"
@@ -77,7 +77,7 @@ func main() {
 	}
 	nLinesTotal, nMatchesByMetric, procTimeMicrosecondsByMetric, nErrorsByMetric := initSelfMonitoring(metrics)
 
-	logger, err := initLogger(cfg)
+	logger, err := log.Init(cfg)
 	exitOnError(err)
 
 	tail, err := startTailer(cfg, logger)
@@ -158,37 +158,6 @@ func main() {
 	}
 }
 
-func initLogger(cfg *v2.Config) (logrus.FieldLogger, error) {
-	jsonFmter := &logrus.JSONFormatter{}
-
-	logger := logrus.New()
-	logrus.SetFormatter(jsonFmter)
-	logger.SetFormatter(jsonFmter)
-
-	switch cfg.Global.LogTo {
-	case "file":
-		logrus.SetOutput(&cfg.LogRotate)
-		logger.SetOutput(&cfg.LogRotate)
-	case "stdout":
-		logrus.SetOutput(os.Stdout)
-		logger.SetOutput(os.Stdout)
-	case "mixed":
-		w := io.MultiWriter(os.Stdout, &cfg.LogRotate)
-		logrus.SetOutput(w)
-		logger.SetOutput(w)
-	default:
-		return nil, fmt.Errorf("unknown log_to type: %q", cfg.Global.LogTo)
-	}
-
-	logLevel, err := logrus.ParseLevel(cfg.Global.LogLevel)
-	if err != nil {
-		return nil, err
-	}
-	logrus.SetLevel(logLevel)
-	logger.SetLevel(logLevel)
-	return logger, nil
-}
-
 func startMsg(cfg *v2.Config, httpHandlers []exporter.HttpServerPathHandler) string {
 	host := "localhost"
 	if len(cfg.Server.Host) > 0 {
@@ -212,8 +181,7 @@ func startMsg(cfg *v2.Config, httpHandlers []exporter.HttpServerPathHandler) str
 
 func exitOnError(err error) {
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "%v\n", err.Error())
-		os.Exit(-1)
+		log.WithError(err).Fatal()
 	}
 }
 

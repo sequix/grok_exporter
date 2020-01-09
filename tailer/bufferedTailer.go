@@ -15,6 +15,7 @@
 package tailer
 
 import (
+	"github.com/sequix/grok_exporter/log"
 	"github.com/sequix/grok_exporter/tailer/fswatcher"
 	"github.com/sirupsen/logrus"
 )
@@ -40,7 +41,7 @@ func (b *bufferedTailer) Close() {
 }
 
 func BufferedTailer(orig fswatcher.Interface) fswatcher.Interface {
-	return BufferedTailerWithMetrics(orig, &noopMetric{}, logrus.New(), 0)
+	return BufferedTailerWithMetrics(orig, &noopMetric{}, log.New(), 0)
 }
 
 // Wrapper around a tailer that consumes the lines channel quickly.

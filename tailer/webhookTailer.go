@@ -18,6 +18,7 @@ import (
 	"errors"
 	json "github.com/bitly/go-simplejson"
 	"github.com/sequix/grok_exporter/config/v2"
+	"github.com/sequix/grok_exporter/log"
 	"github.com/sequix/grok_exporter/tailer/fswatcher"
 	"github.com/sirupsen/logrus"
 	"io/ioutil"
@@ -73,7 +74,7 @@ func (t WebhookTailer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	if r.Body == nil {
 		err := errors.New("got empty request body")
-		logrus.Warn(err)
+		log.WithError(err).Warn()
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		errorChan <- fswatcher.NewError(fswatcher.NotSpecified, err, "")
 		return
@@ -81,7 +82,7 @@ func (t WebhookTailer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	b, err := ioutil.ReadAll(r.Body)
 	if err != nil {
-		logrus.Warn(err)
+		log.WithError(err).Warn()
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		errorChan <- fswatcher.NewError(fswatcher.NotSpecified, err, "")
 		return
@@ -90,9 +91,7 @@ func (t WebhookTailer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	lines := WebhookProcessBody(wts.config, b)
 	for _, line := range lines {
-		logrus.WithFields(logrus.Fields{
-			"line": line,
-		}).Debug("Groking line")
+		log.WithField("line", line).Debug("Groking line")
 		lineChan <- &fswatcher.Line{Line: line}
 	}
 	return
@@ -113,14 +112,12 @@ func WebhookProcessBody(c *v2.InputConfig, b []byte) []string {
 		path := strings.Split(c.WebhookJsonSelector[1:], ".")
 		j, err := json.NewJson(b)
 		if err != nil {
-			logrus.WithFields(logrus.Fields{
-				"post_body": string(b),
-			}).Warn("Unable to Parse JSON")
+			log.WithField("post_body", string(b)).Warn("Unable to Parse JSON")
 			break
 		}
 		s, err := j.GetPath(path...).String()
 		if err != nil {
-			logrus.WithFields(logrus.Fields{
+			log.WithFields(logrus.Fields{
 				"post_body":             string(b),
 				"webhook_json_selector": c.WebhookJsonSelector,
 			}).Warn("Unable to find selector path")
@@ -131,9 +128,7 @@ func WebhookProcessBody(c *v2.InputConfig, b []byte) []string {
 		path := strings.Split(c.WebhookJsonSelector[1:], ".")
 		j, err := json.NewJson(b)
 		if err != nil {
-			logrus.WithFields(logrus.Fields{
-				"post_body": string(b),
-			}).Warn("Unable to Parse JSON")
+			log.WithField("post_body", string(b)).Warn("Unable to Parse JSON")
 			break
 		}
 
@@ -147,7 +142,7 @@ func WebhookProcessBody(c *v2.InputConfig, b []byte) []string {
 
 			s, err := ej.GetPath(new_path...).String()
 			if err != nil {
-				logrus.WithFields(logrus.Fields{
+				log.WithFields(logrus.Fields{
 					"post_body":             string(b),
 					"webhook_json_selector": c.WebhookJsonSelector,
 				}).Warn("Unable to find selector path")

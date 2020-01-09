@@ -1,10 +1,10 @@
 global:
     config_version: 2
 
-    # 支持：panic、fatal、error、warn、info、debug、trace，默认info
+    # 支持：panic、fatal、error、warn、info、debug、trace，默认 info
     log_level: debug
 
-    # 支持：stdout、file、mixed，默认mixed
+    # 支持：stdout、file、mixed，默认 mixed
     log_to: mixed
 
 log_rotate:
@@ -15,7 +15,7 @@ log_rotate:
   
   # MaxSize is the maximum size in megabytes of the log file before it gets
   # rotated. It defaults to 100 megabytes.
-  maxsize: 1
+  maxsize: 128
 
   # MaxAge is the maximum number of days to retain old log files based on the
   # timestamp encoded in their filename.  Note that a day is defined as 24
