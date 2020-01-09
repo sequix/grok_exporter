@@ -159,23 +159,33 @@ func main() {
 }
 
 func initLogger(cfg *v2.Config) (logrus.FieldLogger, error) {
+	jsonFmter := &logrus.JSONFormatter{}
+
 	logger := logrus.New()
-	logger.SetFormatter(&logrus.JSONFormatter{})
+	logrus.SetFormatter(jsonFmter)
+	logger.SetFormatter(jsonFmter)
 
 	switch cfg.Global.LogTo {
 	case "file":
+		logrus.SetOutput(&cfg.LogRotate)
 		logger.SetOutput(&cfg.LogRotate)
 	case "stdout":
+		logrus.SetOutput(os.Stdout)
 		logger.SetOutput(os.Stdout)
 	case "mixed":
-		logger.SetOutput(io.MultiWriter(os.Stdout, &cfg.LogRotate))
+		w := io.MultiWriter(os.Stdout, &cfg.LogRotate)
+		logrus.SetOutput(w)
+		logger.SetOutput(w)
+	default:
+		return nil, fmt.Errorf("unknown log_to type: %q", cfg.Global.LogTo)
 	}
 
 	logLevel, err := logrus.ParseLevel(cfg.Global.LogLevel)
 	if err != nil {
 		return nil, err
 	}
-	logger.Level = logLevel
+	logrus.SetLevel(logLevel)
+	logger.SetLevel(logLevel)
 	return logger, nil
 }
 
