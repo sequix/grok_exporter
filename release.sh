@@ -2,7 +2,7 @@
 
 set -e
 
-if [[ $(go version) != *"go1.11"* && $(go version) != *"go1.12"* && $(go version) != *"go1.13"* ]] ; then
+if [[ $(go version) != *"go1.11"* && $(go version) != *"go1.12"* && $(go version) != *"go1.13"* && $(go version) != *"go1.14"* ]] ; then
     echo "grok_exporter uses Go 1.11 Modules. Please use Go version >= 1.11." >&2
     echo "Version found is $(go version)" >&2
     exit 1
@@ -103,8 +103,9 @@ function run_docker_linux_arm64v8 {
         -v $(pwd):/go/src/github.com/sequix/grok_exporter \
         --net none \
         --user $(id -u):$(id -g) \
+        -v $(pwd)/compile-linux.sh:/compile-linux.sh \
         --rm -ti fstab/grok_exporter-compiler-arm64v8 \
-        ./compile-linux.sh -ldflags "$VERSION_FLAGS" -o "dist/grok_exporter-$VERSION.linux-arm64v8/grok_exporter"
+        bash ./compile-linux.sh -ldflags "$VERSION_FLAGS" -o "dist/grok_exporter-$VERSION.linux-arm64v8/grok_exporter"
 }
 
 function run_docker_linux_arm32v6 {
@@ -112,8 +113,9 @@ function run_docker_linux_arm32v6 {
         -v $(pwd):/go/src/github.com/sequix/grok_exporter \
         --net none \
         --user $(id -u):$(id -g) \
+        -v $(pwd)/compile-linux.sh:/compile-linux.sh \
         --rm -ti fstab/grok_exporter-compiler-arm32v6 \
-        ./compile-linux.sh -ldflags "$VERSION_FLAGS" -o "dist/grok_exporter-$VERSION.linux-arm32v6/grok_exporter"
+        bash ./compile-linux.sh -ldflags "$VERSION_FLAGS" -o "dist/grok_exporter-$VERSION.linux-arm32v6/grok_exporter"
 }
 
 #--------------------------------------------------------------
